@@ -15,8 +15,6 @@ pub enum FeeVaultError {
     BalanceError = 10,
     OverflowError = 12,
 
-    BadRequest = 50,
-
     ReserveNotFound = 100,
     ReserveAlreadyExists = 101,
     InsufficientBalance = 102,

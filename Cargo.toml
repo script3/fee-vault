@@ -1,5 +1,5 @@
 [package]
-name = "backstop_bootstrapper"
+name = "fee-vault"
 version = "1.1.0"
 authors = ["Script3 Ltd. <gm@script3.io>"]
 license = "AGPL-3.0"
@@ -19,6 +19,7 @@ testutils = ["soroban-sdk/testutils"]
 soroban-sdk = "20.5.0"
 soroban-fixed-point-math = "1.0.0"
 blend-contract-sdk = "1.0.0"
+sep-40-oracle = { workspace = true, features = ["testutils"] }
 
 [dev_dependencies]
 soroban-sdk = { version = "20.5.0", features = ["testutils"] }
@@ -39,4 +40,7 @@ codegen-units = 1
 lto = true
 
 [workspace.dependencies.soroban-fixed-point-math]
+version = "1.0.0"
+
+[workspace.dependencies.sep-40-oracle]
 version = "1.0.0"

@@ -10,18 +10,17 @@ impl FeeVault {
     /// Initialize the contract
     ///
     /// ### Arguments
-    /// * `backstop` - The backstop address
     /// * `admin` - The admin address
     /// * `pool` - The pool address
+    /// * `take_rate` - The take rate for the fee vault
     ///
     /// ### Panics
     /// * `AlreadyInitializedError` - If the contract has already been initialized
-    pub fn initialize(e: Env, backstop: Address, admin: Address, pool: Address, take_rate: i128) {
+    pub fn initialize(e: Env, admin: Address, pool: Address, take_rate: i128) {
         if storage::get_is_init(&e) {
             panic_with_error!(&e, FeeVaultError::AlreadyInitializedError);
         }
         storage::set_is_init(&e);
-        storage::set_backstop(&e, backstop);
         storage::set_admin(&e, admin);
         storage::set_pool(&e, pool);
         storage::set_take_rate(&e, take_rate);
@@ -34,21 +33,34 @@ impl FeeVault {
     /// ### Arguments
     /// * `ids` - The ids of the reserves
     /// * `user` - The address of the user
+    ///
+    /// ### Returns
+    /// * Map of underlying addresses and underlying deposit amounts
     pub fn get_deposits(e: Env, ids: Vec<u32>, user: Address) -> Map<Address, i128> {
         let mut result = Map::new(&e);
         for id in ids.iter() {
             let reserve = Reserve::load(&e, id);
             result.set(
-                reserve.address,
-                reserve.deposits.get(user.clone()).unwrap_or(0),
+                reserve.address.clone(),
+                reserve.shares_to_underlying(reserve.deposits.get(user.clone()).unwrap_or(0)),
             );
         }
         result
     }
 
+    /// Get the pool address
+    pub fn get_pool(e: Env) -> Address {
+        storage::get_pool(&e)
+    }
+
     //********** Read-Write ***********//
 
     // ADMIN ONLY
+    /// Sets the take rate for the fee vault
+    ///
+    /// ### Arguments
+    /// * `e` - The environment object
+    /// * `take_rate` - The new take rate to set
     pub fn set_take_rate(e: Env, take_rate: i128) {
         let admin = storage::get_admin(&e);
         admin.require_auth();
@@ -56,12 +68,23 @@ impl FeeVault {
     }
 
     // ADMIN ONLY
+    /// Sets the admin address for the fee vault
+    ///
+    /// ### Arguments
+    /// * `e` - The environment object
+    /// * `admin` - The new admin address to set
     pub fn set_admin(e: Env, admin: Address) {
         storage::get_admin(&e).require_auth();
         storage::set_admin(&e, admin);
     }
 
     // ADMIN ONLY
+    /// Adds a new reserve to the fee vault
+    ///
+    /// ### Arguments
+    /// * `e` - The environment object
+    /// * `reserve_id` - The ID of the reserve to add
+    /// * `reserve_address` - The address of the reserve to add
     pub fn add_reserve(e: Env, reserve_id: u32, reserve_address: Address) {
         let admin = storage::get_admin(&e);
         admin.require_auth();
@@ -85,7 +108,6 @@ impl FeeVault {
     /// Deposits tokens into the fee vault for a specific reserve
     ///
     /// This function allows users to deposit tokens into the fee vault for a particular reserve.
-    /// It requires authorization from the depositor and calls the `vault::deposit` function to handle the deposit process.
     ///
     /// ### Arguments
     /// * `e` - The environment object
@@ -95,7 +117,6 @@ impl FeeVault {
     ///
     /// ### Returns
     /// * `i128` - The amount of b-tokens received in exchange for the deposit
-
     pub fn deposit(e: &Env, from: Address, amount: i128, reserve_id: u32) -> i128 {
         from.require_auth();
         vault::deposit(e, &from, amount, reserve_id)
@@ -104,7 +125,6 @@ impl FeeVault {
     /// Withdraws tokens from the fee vault for a specific reserve
     ///
     /// This function allows users to withdraw tokens from the fee vault for a particular reserve.
-    /// It requires authorization from the withdrawer and calls the `vault::withdraw` function to handle the withdrawal process.
     ///
     /// ### Arguments
     /// * `e` - The environment object

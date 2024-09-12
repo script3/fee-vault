@@ -1,22 +1,5 @@
 use soroban_sdk::{contracttype, Address, Map};
 
-#[derive(Clone, Copy, PartialEq)]
-#[repr(u32)]
-#[contracttype]
-pub enum BootstrapStatus {
-    Active = 0,
-    Closing = 1,
-    Completed = 2,
-    Cancelled = 3,
-}
-
-#[derive(Clone)]
-#[contracttype]
-pub struct TokenInfo {
-    pub address: Address,
-    pub weight: i128,
-}
-
 #[derive(Clone)]
 #[contracttype]
 pub struct ReserveData {

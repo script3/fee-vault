@@ -4,7 +4,6 @@ use crate::types::ReserveData;
 
 //********** Storage Keys **********//
 
-const BACKSTOP_KEY: &str = "Bstop";
 const POOL_KEY: &str = "Pool";
 const ADMIN_KEY: &str = "Admin";
 const IS_INIT_KEY: &str = "IsInit";
@@ -48,21 +47,6 @@ pub fn set_is_init(e: &Env) {
         .set::<Symbol, bool>(&Symbol::new(e, IS_INIT_KEY), &true);
 }
 
-/// Get the backstop address
-pub fn get_backstop(e: &Env) -> Address {
-    e.storage()
-        .instance()
-        .get::<Symbol, Address>(&Symbol::new(e, BACKSTOP_KEY))
-        .unwrap_optimized()
-}
-
-/// Set the backstop address
-pub fn set_backstop(e: &Env, backstop: Address) {
-    e.storage()
-        .instance()
-        .set::<Symbol, Address>(&Symbol::new(e, BACKSTOP_KEY), &backstop);
-}
-
 /// Get the pool address
 pub fn get_pool(e: &Env) -> Address {
     e.storage()
@@ -93,6 +77,7 @@ pub fn set_admin(e: &Env, admin: Address) {
         .set::<Symbol, Address>(&Symbol::new(e, ADMIN_KEY), &admin);
 }
 
+/// Get the take rate for the fee vault
 pub fn get_take_rate(e: &Env) -> i128 {
     e.storage()
         .instance()
@@ -100,6 +85,7 @@ pub fn get_take_rate(e: &Env) -> i128 {
         .unwrap_optimized()
 }
 
+/// Set the take rate for the fee vault
 pub fn set_take_rate(e: &Env, take_rate: i128) {
     e.storage()
         .instance()
@@ -108,6 +94,7 @@ pub fn set_take_rate(e: &Env, take_rate: i128) {
 
 /********** Persistent **********/
 
+/// Set a reserve's data
 pub fn set_reserve_data(e: &Env, reserve_id: u32, data: ReserveData) {
     e.storage()
         .persistent()
@@ -117,6 +104,7 @@ pub fn set_reserve_data(e: &Env, reserve_id: u32, data: ReserveData) {
         .extend_ttl(&reserve_id, LEDGER_THRESHOLD_USER, LEDGER_BUMP_USER);
 }
 
+/// Get a reserve's data
 pub fn get_reserve_data(e: &Env, reserve_id: u32) -> Option<ReserveData> {
     let result = e
         .storage()
@@ -130,7 +118,7 @@ pub fn get_reserve_data(e: &Env, reserve_id: u32) -> Option<ReserveData> {
     result
 }
 
-/// Get a user
+/// Get a user's deposits
 pub fn get_user(e: &Env, user: &Address) -> Map<u32, i128> {
     let result = e
         .storage()
@@ -146,7 +134,7 @@ pub fn get_user(e: &Env, user: &Address) -> Map<u32, i128> {
     }
 }
 
-/// Set a user's data
+/// Set a user's deposits
 pub fn set_user(e: &Env, user: &Address, data: Map<u32, i128>) {
     e.storage()
         .persistent()
