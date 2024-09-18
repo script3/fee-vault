@@ -53,20 +53,35 @@ impl Reserve {
             .total_b_tokens
             .fixed_mul_floor(new_rate - self.b_rate, SCALAR_9)
             .unwrap();
+        // Update the reserve's bRate
+        self.b_rate = new_rate;
 
         // Calculate the admin fee - 7 decimal places of precision
-        if accrued_interest == 0 {
+        if accrued_interest <= 0 {
             return;
         }
         let admin_fee = accrued_interest
             .fixed_mul_floor(storage::get_take_rate(e), SCALAR_7)
             .unwrap();
-        // Update the reserve's bRate
-        self.b_rate = new_rate;
+
+        // calculate admins accrued fees
+        let pct_accrual = admin_fee
+            .fixed_div_floor(new_rate, SCALAR_9)
+            .unwrap()
+            .fixed_div_floor(self.total_b_tokens, SCALAR_7)
+            .unwrap();
+        let accrued_shares = pct_accrual
+            .fixed_mul_floor(self.total_deposits, SCALAR_7)
+            .unwrap()
+            .fixed_div_floor(SCALAR_7 - pct_accrual, SCALAR_7)
+            .unwrap();
+
         // Mint the admin fee to the admin address
         let admin_address = storage::get_admin(e);
         let total_fees = self.deposits.get(admin_address.clone()).unwrap_or(0);
-        self.deposits.set(admin_address, total_fees + admin_fee);
+        self.deposits
+            .set(admin_address, total_fees + accrued_shares);
+        self.total_deposits += accrued_shares;
     }
 
     /// Deposits tokens into the reserve
@@ -129,9 +144,7 @@ impl Reserve {
     /// Rounds down
     pub fn shares_to_underlying(&self, amount: i128) -> i128 {
         amount
-            .fixed_div_floor(self.total_deposits, SCALAR_7)
-            .unwrap()
-            .fixed_mul_floor(self.total_b_tokens, SCALAR_7)
+            .fixed_div_floor(self.total_deposits, self.total_b_tokens)
             .unwrap()
             .fixed_mul_floor(self.b_rate, SCALAR_9)
             .unwrap()
@@ -364,7 +377,7 @@ mod tests {
 
             let mut deposits = Map::new(&e);
             deposits.set(samwise.clone(), 100_000_0000);
-            deposits.set(frodo.clone(), 50_000_0000);
+            deposits.set(frodo.clone(), 55_000_0000);
 
             let reserve_data = ReserveData {
                 address: Address::generate(&e),
@@ -402,304 +415,170 @@ mod tests {
             reserve.store(&e);
 
             // Load the updated reserve to verify the changes
-            let expected_share_amount = 80_000_0000;
             let updated_reserve = Reserve::load(&e, 0);
             let updated_total_deposits = updated_reserve.total_deposits;
             let updated_total_b_tokens = updated_reserve.total_b_tokens;
-            let updated_frodo_balance = updated_reserve.deposits.get(frodo).unwrap();
-            assert_eq!(updated_frodo_balance, expected_share_amount);
-            assert_eq!(updated_total_deposits, expected_share_amount * 2);
-            assert_eq!(updated_total_b_tokens, expected_share_amount * 2);
+            assert!(updated_reserve.deposits.get(frodo).is_none());
+            assert_eq!(
+                updated_total_deposits,
+                2200_000_0000 - expected_share_amount - 55_000_0000
+            );
+            assert_eq!(
+                updated_total_b_tokens,
+                2000_000_0000 - 80_000_0000 - 50_000_0000
+            );
         });
     }
 
-    // #[test]
-    // fn test_execute_dequeue_withdrawal() {
-    //     let e = Env::default();
-    //     e.mock_all_auths_allowing_non_root_auth();
+    #[test]
+    #[should_panic(expected = "Error(Contract, #102)")]
+    fn test_over_withdraw() {
+        let e = Env::default();
+        e.mock_all_auths_allowing_non_root_auth();
 
-    //     let backstop_address = create_backstop(&e);
-    //     let pool_address = Address::generate(&e);
-    //     let bombadil = Address::generate(&e);
-    //     let samwise = Address::generate(&e);
+        let vault_address = register_fee_vault(&e);
 
-    //     let (_, backstop_token_client) = create_backstop_token(&e, &backstop_address, &bombadil);
-    //     backstop_token_client.mint(&samwise, &100_0000000);
+        e.as_contract(&vault_address, || {
+            let samwise = Address::generate(&e);
+            let frodo = Address::generate(&e);
 
-    //     let (_, mock_pool_factory_client) = create_mock_pool_factory(&e, &backstop_address);
-    //     mock_pool_factory_client.set_pool(&pool_address);
+            let mut deposits = Map::new(&e);
+            deposits.set(samwise.clone(), 100_000_0000);
+            deposits.set(frodo.clone(), 55_000_0000);
 
-    //     // queue shares for withdraw
-    //     e.as_contract(&backstop_address, || {
-    //         execute_deposit(&e, &samwise, &pool_address, 75_0000000);
-    //         execute_queue_withdrawal(&e, &samwise, &pool_address, 25_0000000);
+            let reserve_data = ReserveData {
+                address: Address::generate(&e),
+                deposits,
+                total_b_tokens: 2000_000_0000,
+                total_deposits: 2200_000_0000,
+                b_rate: 1_200_000_000,
+            };
 
-    //         e.ledger().set(LedgerInfo {
-    //             protocol_version: 20,
-    //             sequence_number: 100,
-    //             timestamp: 10000,
-    //             network_id: Default::default(),
-    //             base_reserve: 10,
-    //             min_temp_entry_ttl: 10,
-    //             min_persistent_entry_ttl: 10,
-    //             max_entry_ttl: 3110400,
-    //         });
+            // Add the reserve to storage
+            storage::set_reserve_data(&e, 0, reserve_data);
 
-    //         execute_queue_withdrawal(&e, &samwise, &pool_address, 40_0000000);
-    //     });
+            let mut reserve = Reserve::load(&e, 0);
+            // Perform a withdrawal for samwise
+            reserve.withdraw(&e, samwise.clone(), 200_000_0000);
+        });
+    }
 
-    //     e.ledger().set(LedgerInfo {
-    //         protocol_version: 20,
-    //         sequence_number: 200,
-    //         timestamp: 20000,
-    //         network_id: Default::default(),
-    //         base_reserve: 10,
-    //         min_temp_entry_ttl: 10,
-    //         min_persistent_entry_ttl: 10,
-    //         max_entry_ttl: 3110400,
-    //     });
+    #[test]
+    #[should_panic(expected = "Error(Contract, #102)")]
+    fn test_over_withdraw_2() {
+        let e = Env::default();
+        e.mock_all_auths_allowing_non_root_auth();
 
-    //     e.as_contract(&backstop_address, || {
-    //         execute_dequeue_withdrawal(&e, &samwise, &pool_address, 30_0000000);
+        let vault_address = register_fee_vault(&e);
 
-    //         let new_user_balance = storage::get_user_balance(&e, &pool_address, &samwise);
-    //         assert_eq!(new_user_balance.shares, 40_0000000);
-    //         let expected_q4w = vec![
-    //             &e,
-    //             Q4W {
-    //                 amount: 35_0000000,
-    //                 exp: 10000 + 21 * 24 * 60 * 60,
-    //             },
-    //         ];
-    //         assert_eq_vec_q4w(&new_user_balance.q4w, &expected_q4w);
+        e.as_contract(&vault_address, || {
+            let samwise = Address::generate(&e);
 
-    //         let new_pool_balance = storage::get_pool_balance(&e, &pool_address);
-    //         assert_eq!(new_pool_balance.q4w, 35_0000000);
-    //         assert_eq!(new_pool_balance.shares, 75_0000000);
-    //         assert_eq!(new_pool_balance.tokens, 75_0000000);
-    //     });
-    // }
+            let deposits = Map::new(&e);
 
-    // #[test]
-    // #[should_panic(expected = "Error(Contract, #8)")]
-    // fn test_execute_dequeue_withdrawal_negative_amount() {
-    //     let e = Env::default();
-    //     e.mock_all_auths_allowing_non_root_auth();
+            let reserve_data = ReserveData {
+                address: Address::generate(&e),
+                deposits,
+                total_b_tokens: 2000_000_0000,
+                total_deposits: 2200_000_0000,
+                b_rate: 1_200_000_000,
+            };
 
-    //     let backstop_address = create_backstop(&e);
-    //     let pool_address = Address::generate(&e);
-    //     let bombadil = Address::generate(&e);
-    //     let samwise = Address::generate(&e);
+            // Add the reserve to storage
+            storage::set_reserve_data(&e, 0, reserve_data);
 
-    //     let (_, backstop_token_client) = create_backstop_token(&e, &backstop_address, &bombadil);
-    //     backstop_token_client.mint(&samwise, &100_0000000);
+            let mut reserve = Reserve::load(&e, 0);
+            // Perform a withdrawal for samwise
+            reserve.withdraw(&e, samwise.clone(), 200_000_0000);
+        });
+    }
 
-    //     let (_, mock_pool_factory_client) = create_mock_pool_factory(&e, &backstop_address);
-    //     mock_pool_factory_client.set_pool(&pool_address);
+    #[test]
+    fn test_update_rate() {
+        let e = Env::default();
+        e.mock_all_auths_allowing_non_root_auth();
 
-    //     // queue shares for withdraw
-    //     e.as_contract(&backstop_address, || {
-    //         execute_deposit(&e, &samwise, &pool_address, 75_0000000);
-    //         execute_queue_withdrawal(&e, &samwise, &pool_address, 25_0000000);
+        let vault_address = register_fee_vault(&e);
 
-    //         e.ledger().set(LedgerInfo {
-    //             protocol_version: 20,
-    //             sequence_number: 100,
-    //             timestamp: 10000,
-    //             network_id: Default::default(),
-    //             base_reserve: 10,
-    //             min_temp_entry_ttl: 10,
-    //             min_persistent_entry_ttl: 10,
-    //             max_entry_ttl: 3110400,
-    //         });
+        e.as_contract(&vault_address, || {
+            let bombadil = Address::generate(&e);
+            storage::set_admin(&e, bombadil.clone());
 
-    //         execute_queue_withdrawal(&e, &samwise, &pool_address, 40_0000000);
-    //     });
+            storage::set_take_rate(&e, 200_0000);
 
-    //     e.ledger().set(LedgerInfo {
-    //         protocol_version: 20,
-    //         sequence_number: 200,
-    //         timestamp: 20000,
-    //         network_id: Default::default(),
-    //         base_reserve: 10,
-    //         min_temp_entry_ttl: 10,
-    //         min_persistent_entry_ttl: 10,
-    //         max_entry_ttl: 3110400,
-    //     });
+            let reserve_data = ReserveData {
+                address: Address::generate(&e),
+                deposits: Map::new(&e),
+                total_b_tokens: 1000_0000000,
+                total_deposits: 1200_0000000,
+                b_rate: 1_100_000_000,
+            };
 
-    //     e.as_contract(&backstop_address, || {
-    //         execute_dequeue_withdrawal(&e, &samwise, &pool_address, -30_0000000);
-    //     });
-    // }
+            // Add the reserve to storage
+            storage::set_reserve_data(&e, 0, reserve_data);
 
-    // #[test]
-    // fn test_execute_withdrawal() {
-    //     let e = Env::default();
-    //     e.mock_all_auths_allowing_non_root_auth();
+            let mut reserve = Reserve::load(&e, 0);
+            // update b_rate to 1.2
+            let expected_accrued_fee = 20_3389003;
+            reserve.update_rate(&e, 120_000_0000, 100_000_0000);
+            reserve.store(&e);
+            assert_eq!(
+                reserve.deposits.get(bombadil.clone()).unwrap(),
+                expected_accrued_fee
+            );
+            assert_eq!(reserve.total_deposits, 1200_000_0000 + expected_accrued_fee);
 
-    //     let backstop_address = create_backstop(&e);
-    //     let pool_address = Address::generate(&e);
-    //     let bombadil = Address::generate(&e);
-    //     let samwise = Address::generate(&e);
+            // update b_rate to 1.5
+            let expected_accrued_fee_2 = 50_8474541;
+            reserve.update_rate(&e, 150_000_0000, 100_000_0000);
+            reserve.store(&e);
+            assert_eq!(
+                reserve.deposits.get(bombadil.clone()).unwrap(),
+                expected_accrued_fee + expected_accrued_fee_2
+            );
+            assert_eq!(
+                reserve.total_deposits,
+                1200_000_0000 + expected_accrued_fee + expected_accrued_fee_2
+            );
+        });
+    }
+    #[test]
+    fn test_update_rate_2() {
+        let e = Env::default();
+        e.mock_all_auths_allowing_non_root_auth();
 
-    //     let (_, backstop_token_client) = create_backstop_token(&e, &backstop_address, &bombadil);
-    //     backstop_token_client.mint(&samwise, &150_0000000);
+        let vault_address = register_fee_vault(&e);
 
-    //     let (_, mock_pool_factory_client) = create_mock_pool_factory(&e, &backstop_address);
-    //     mock_pool_factory_client.set_pool(&pool_address);
+        e.as_contract(&vault_address, || {
+            let bombadil = Address::generate(&e);
+            storage::set_admin(&e, bombadil.clone());
 
-    //     e.ledger().set(LedgerInfo {
-    //         protocol_version: 20,
-    //         sequence_number: 200,
-    //         timestamp: 10000,
-    //         network_id: Default::default(),
-    //         base_reserve: 10,
-    //         min_temp_entry_ttl: 10,
-    //         min_persistent_entry_ttl: 10,
-    //         max_entry_ttl: 3110400,
-    //     });
+            storage::set_take_rate(&e, 200_0000);
 
-    //     // setup pool with queue for withdrawal and allow the backstop to incur a profit
-    //     e.as_contract(&backstop_address, || {
-    //         execute_deposit(&e, &samwise, &pool_address, 100_0000000);
-    //         execute_queue_withdrawal(&e, &samwise, &pool_address, 42_0000000);
-    //         execute_donate(&e, &samwise, &pool_address, 50_0000000);
-    //     });
+            let reserve_data = ReserveData {
+                address: Address::generate(&e),
+                deposits: Map::new(&e),
+                total_b_tokens: 50_000_0000000,
+                total_deposits: 50_000_0000000,
+                b_rate: 1_000_000_000,
+            };
 
-    //     e.ledger().set(LedgerInfo {
-    //         protocol_version: 20,
-    //         sequence_number: 200,
-    //         timestamp: 10000 + 21 * 24 * 60 * 60 + 1,
-    //         network_id: Default::default(),
-    //         base_reserve: 10,
-    //         min_temp_entry_ttl: 10,
-    //         min_persistent_entry_ttl: 10,
-    //         max_entry_ttl: 3110400,
-    //     });
+            // Add the reserve to storage
+            storage::set_reserve_data(&e, 0, reserve_data);
 
-    //     e.as_contract(&backstop_address, || {
-    //         let tokens = execute_withdraw(&e, &samwise, &pool_address, 42_0000000);
-
-    //         let new_user_balance = storage::get_user_balance(&e, &pool_address, &samwise);
-    //         assert_eq!(new_user_balance.shares, 100_0000000 - 42_0000000);
-    //         assert_eq!(new_user_balance.q4w.len(), 0);
-
-    //         let new_pool_balance = storage::get_pool_balance(&e, &pool_address);
-    //         assert_eq!(new_pool_balance.q4w, 0);
-    //         assert_eq!(new_pool_balance.shares, 100_0000000 - 42_0000000);
-    //         assert_eq!(new_pool_balance.tokens, 150_0000000 - tokens);
-    //         assert_eq!(tokens, 63_0000000);
-
-    //         assert_eq!(
-    //             backstop_token_client.balance(&backstop_address),
-    //             150_0000000 - tokens
-    //         );
-    //         assert_eq!(backstop_token_client.balance(&samwise), tokens);
-    //     });
-    // }
-
-    // #[test]
-    // #[should_panic(expected = "Error(Contract, #8)")]
-    // fn test_execute_withdrawal_negative_amount() {
-    //     let e = Env::default();
-    //     e.mock_all_auths_allowing_non_root_auth();
-
-    //     let backstop_address = create_backstop(&e);
-    //     let pool_address = Address::generate(&e);
-    //     let bombadil = Address::generate(&e);
-    //     let samwise = Address::generate(&e);
-
-    //     let (_, backstop_token_client) = create_backstop_token(&e, &backstop_address, &bombadil);
-    //     backstop_token_client.mint(&samwise, &150_0000000);
-
-    //     let (_, mock_pool_factory_client) = create_mock_pool_factory(&e, &backstop_address);
-    //     mock_pool_factory_client.set_pool(&pool_address);
-
-    //     e.ledger().set(LedgerInfo {
-    //         protocol_version: 20,
-    //         sequence_number: 200,
-    //         timestamp: 10000,
-    //         network_id: Default::default(),
-    //         base_reserve: 10,
-    //         min_temp_entry_ttl: 10,
-    //         min_persistent_entry_ttl: 10,
-    //         max_entry_ttl: 3110400,
-    //     });
-
-    //     // setup pool with queue for withdrawal and allow the backstop to incur a profit
-    //     e.as_contract(&backstop_address, || {
-    //         execute_deposit(&e, &samwise, &pool_address, 100_0000000);
-    //         execute_queue_withdrawal(&e, &samwise, &pool_address, 42_0000000);
-    //         execute_donate(&e, &samwise, &pool_address, 50_0000000);
-    //     });
-
-    //     e.ledger().set(LedgerInfo {
-    //         protocol_version: 20,
-    //         sequence_number: 200,
-    //         timestamp: 10000 + 21 * 24 * 60 * 60 + 1,
-    //         network_id: Default::default(),
-    //         base_reserve: 10,
-    //         min_temp_entry_ttl: 10,
-    //         min_persistent_entry_ttl: 10,
-    //         max_entry_ttl: 3110400,
-    //     });
-
-    //     e.as_contract(&backstop_address, || {
-    //         execute_withdraw(&e, &samwise, &pool_address, -42_0000000);
-    //     });
-    // }
-
-    // #[test]
-    // #[should_panic(expected = "Error(Contract, #1006)")]
-    // fn test_execute_withdrawal_zero_tokens() {
-    //     let e = Env::default();
-    //     e.mock_all_auths_allowing_non_root_auth();
-
-    //     let backstop_address = create_backstop(&e);
-    //     let pool_address = Address::generate(&e);
-    //     let bombadil = Address::generate(&e);
-    //     let samwise = Address::generate(&e);
-    //     let frodo = Address::generate(&e);
-
-    //     let (_, backstop_token_client) = create_backstop_token(&e, &backstop_address, &bombadil);
-    //     backstop_token_client.mint(&samwise, &150_0000000);
-    //     backstop_token_client.mint(&frodo, &150_0000000);
-
-    //     let (_, mock_pool_factory_client) = create_mock_pool_factory(&e, &backstop_address);
-    //     mock_pool_factory_client.set_pool(&pool_address);
-
-    //     e.ledger().set(LedgerInfo {
-    //         protocol_version: 20,
-    //         sequence_number: 200,
-    //         timestamp: 10000,
-    //         network_id: Default::default(),
-    //         base_reserve: 10,
-    //         min_temp_entry_ttl: 10,
-    //         min_persistent_entry_ttl: 10,
-    //         max_entry_ttl: 3110400,
-    //     });
-
-    //     // setup pool with queue for withdrawal and allow the backstop to incur a profit
-    //     e.as_contract(&backstop_address, || {
-    //         execute_deposit(&e, &frodo, &pool_address, 1_0000001);
-    //         execute_deposit(&e, &samwise, &pool_address, 1_0000000);
-    //         execute_queue_withdrawal(&e, &samwise, &pool_address, 1_0000000);
-    //         execute_draw(&e, &pool_address, 1_9999999, &frodo);
-    //     });
-
-    //     e.ledger().set(LedgerInfo {
-    //         protocol_version: 20,
-    //         sequence_number: 200,
-    //         timestamp: 10000 + 21 * 24 * 60 * 60 + 1,
-    //         network_id: Default::default(),
-    //         base_reserve: 10,
-    //         min_temp_entry_ttl: 10,
-    //         min_persistent_entry_ttl: 10,
-    //         max_entry_ttl: 3110400,
-    //     });
-
-    //     e.as_contract(&backstop_address, || {
-    //         execute_withdraw(&e, &samwise, &pool_address, 1_0000000);
-    //     });
-    // }
+            let mut reserve = Reserve::load(&e, 0);
+            // update b_rate to 1.2
+            let expected_accrued_fee = 106_1283400;
+            reserve.update_rate(&e, 9999999999990, 9894986154500);
+            reserve.store(&e);
+            assert_eq!(
+                reserve.deposits.get(bombadil.clone()).unwrap(),
+                expected_accrued_fee
+            );
+            assert_eq!(
+                reserve.total_deposits,
+                50_000_0000000 + expected_accrued_fee
+            );
+        });
+    }
 }

@@ -36,7 +36,7 @@ impl FeeVault {
     ///
     /// ### Returns
     /// * Map of underlying addresses and underlying deposit amounts
-    pub fn get_deposits(e: Env, ids: Vec<u32>, user: Address) -> Map<Address, i128> {
+    pub fn get_deposits_in_underlying(e: Env, ids: Vec<u32>, user: Address) -> Map<Address, i128> {
         let mut result = Map::new(&e);
         for id in ids.iter() {
             let reserve = Reserve::load(&e, id);
@@ -51,6 +51,11 @@ impl FeeVault {
     /// Get the pool address
     pub fn get_pool(e: Env) -> Address {
         storage::get_pool(&e)
+    }
+
+    /// Get the reserve data for a reserve
+    pub fn get_reserve_data(e: Env, id: u32) -> ReserveData {
+        storage::get_reserve_data(&e, id).unwrap()
     }
 
     //********** Read-Write ***********//
@@ -133,7 +138,7 @@ impl FeeVault {
     /// * `amount` - The amount of tokens to withdraw
     ///
     /// ### Returns
-    /// * `i128` - The amount of underlying tokens received in exchange for the withdrawn b-tokens
+    /// * `i128` - The amount of b_tokens withdrawn
     pub fn withdraw(e: &Env, from: Address, id: u32, amount: i128) -> i128 {
         from.require_auth();
         vault::withdraw(e, &from, amount, id)

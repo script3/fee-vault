@@ -4,9 +4,10 @@ use std::println;
 
 use crate::constants::SCALAR_7;
 use crate::dependencies::pool::{Client as PoolClient, Request};
+use crate::reserve::Reserve;
 use crate::storage::ONE_DAY_LEDGERS;
-use crate::testutils::{self, create_fee_vault, EnvTestUtils};
-use crate::FeeVaultClient;
+use crate::testutils::{self, assert_approx_eq_abs, create_fee_vault, EnvTestUtils};
+use crate::{reserve, FeeVaultClient};
 use blend_contract_sdk::testutils::BlendFixture;
 use soroban_sdk::testutils::{Address as _, BytesN as _};
 use soroban_sdk::token::{StellarAssetClient, TokenClient};
@@ -32,7 +33,7 @@ fn test_happy_path() {
 
     let blend_fixture = BlendFixture::deploy(&e, &bombadil, &blnd, &usdc);
 
-    let fee_vault = create_fee_vault(&e, &blend_fixture, bombadil, &usdc_client);
+    let fee_vault = create_fee_vault(&e, &blend_fixture, bombadil.clone(), &usdc_client);
     println!("fee vault created");
     let fee_vault_client = FeeVaultClient::new(&e, &fee_vault);
     let pool_address = fee_vault_client.get_pool();
@@ -46,7 +47,7 @@ fn test_happy_path() {
             .mock_all_auths()
             .deposit(&frodo, &100_0000_0000000, &0);
     let shares_received = fee_vault_client
-        .get_deposits(&vec![&e, 0], &frodo)
+        .get_deposits_in_underlying(&vec![&e, 0], &frodo)
         .get(usdc.clone())
         .unwrap();
     assert_eq!(shares_received, b_tokens_received);
@@ -54,6 +55,11 @@ fn test_happy_path() {
         .get_positions(&fee_vault)
         .supply
         .get_unchecked(0);
+    let admin_deposit_amount = fee_vault_client
+        .get_deposits_in_underlying(&vec![&e, 0], &bombadil)
+        .get(usdc.clone())
+        .unwrap();
+    println!("admin_deposit_amount: {}", admin_deposit_amount);
     assert_eq!(vault_balance, b_tokens_received);
     // withdraw some usdc from fee vault
     let pre_withdrawal_balance = usdc_token.balance(&frodo);
@@ -77,6 +83,12 @@ fn test_happy_path() {
         .supply
         .get_unchecked(0);
     assert_eq!(vault_balance, b_tokens_received / 2);
+
+    let admin_deposit_amount = fee_vault_client
+        .get_deposits_in_underlying(&vec![&e, 0], &bombadil)
+        .get(usdc.clone())
+        .unwrap();
+    assert_eq!(admin_deposit_amount, 0);
 
     // fund merry
     let merry = Address::generate(&e);
@@ -133,17 +145,41 @@ fn test_happy_path() {
     let post_vault_b_tokens = pool_client.get_positions(&fee_vault).supply.get(0).unwrap();
     assert_eq!(pre_vault_b_tokens + b_tokens_received, post_vault_b_tokens);
     let deposit_amount = fee_vault_client
-        .get_deposits(&vec![&e, 0], &merry)
+        .get_deposits_in_underlying(&vec![&e, 0], &merry)
         .get(usdc.clone())
         .unwrap();
-    let withdraw_amount = fee_vault_client.withdraw(&merry, &0, &100_0000_0000000);
-    assert_eq!(withdraw_amount, 100_0000_0000000);
-    assert_eq!(usdc_token.balance(&merry), 100_0000_0000000 + 99999999999);
-    assert_eq!(deposit_amount, 100_0000_0000000);
+    let admin_deposit_amount = fee_vault_client
+        .get_deposits_in_underlying(&vec![&e, 0], &bombadil)
+        .get(usdc.clone())
+        .unwrap();
+    println!("admin_deposit_amount: {}", admin_deposit_amount);
+    e.as_contract(&fee_vault, || {
+        let reserve = Reserve::load(&e, 0);
+        let share_deposit_amount = reserve.deposits.get(merry.clone()).unwrap();
+        println!("deposit_share_amount: {}", share_deposit_amount);
+        let shares_from_b_tokens = reserve.b_tokens_to_shares_up(b_tokens_received);
+        println!("shares_from_b_tokens: {}", shares_from_b_tokens);
+    });
+    let withdraw_amount = fee_vault_client.withdraw(&merry, &0, &99_9999_9999990);
+    let post_withdraw_deposit_amount = fee_vault_client
+        .get_deposits_in_underlying(&vec![&e, 0], &merry)
+        .get(usdc.clone())
+        .unwrap();
+    assert_eq!(post_withdraw_deposit_amount, 0);
+    assert_eq!(withdraw_amount, 989_498_615_4500);
+    assert_eq!(usdc_token.balance(&merry), 100_0000_0000000 + 99999999989);
+    assert_eq!(deposit_amount, 999_999_999_9998);
 
+    // check admin deposit
+    let admin_deposit_amount = fee_vault_client
+        .get_deposits_in_underlying(&vec![&e, 0], &bombadil)
+        .get(usdc.clone())
+        .unwrap();
+    assert_approx_eq_abs(admin_deposit_amount, 106_1283400, 1000);
+    //1061_2445358
     // check frodo deposit
     let frodo_deposit_amount = fee_vault_client
-        .get_deposits(&vec![&e, 0], &frodo)
+        .get_deposits_in_underlying(&vec![&e, 0], &frodo)
         .get(usdc)
         .unwrap();
     let frodo_b_rate = 10612834 * 800_000_000 / 1_000_000_000 + 1_000_000_000;

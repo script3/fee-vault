@@ -4,7 +4,6 @@ use crate::{
     reserve::Reserve,
     storage::{self},
 };
-use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::{
     auth::{ContractContext, InvokerContractAuthEntry, SubContractInvocation},
     panic_with_error,
@@ -98,7 +97,7 @@ pub fn withdraw(e: &Env, from: &Address, amount: i128, reserve_id: u32) -> i128 
     reserve.update_rate(e, real_amount, b_tokens_amount);
     reserve.withdraw(e, from.clone(), b_tokens_amount);
     reserve.store(e);
-    real_amount
+    b_tokens_amount
 }
 
 /// Executes a claim of BLND emissions from the pool on behalf of the fee vault
