@@ -12,6 +12,7 @@ pub struct Reserve {
     pub total_deposits: i128, // The total deposits associated with the reserve
     pub total_b_tokens: i128, // The total bToken deposits associated with the reserve
     pub deposits: Map<Address, i128>, // The user deposits associated with the reserve
+    pub accrued_fees: i128, // The number of bTokens the admin has accrues
 }
 
 impl Reserve {
@@ -27,6 +28,7 @@ impl Reserve {
             total_deposits: data.total_deposits,
             total_b_tokens: data.total_b_tokens,
             deposits: data.deposits,
+            accrued_fees: data.accrued_fees,
         }
     }
 
@@ -38,16 +40,18 @@ impl Reserve {
             total_deposits: self.total_deposits,
             total_b_tokens: self.total_b_tokens,
             deposits: self.deposits.clone(),
+            accrued_fees: self.accrued_fees,
         };
         storage::set_reserve_data(e, self.id, data);
     }
 
-    /// Updates the reserve's bRate and mints a deposit to the admin in accordance with the portion of interest they earned
+    /// Updates the reserve's bRate and accrues fees to the admin in accordance with the portion of interest they earned
     pub fn update_rate(&mut self, e: &Env, underlying_amount: i128, b_tokens_amount: i128) {
         // Calculate the new bRate - 9 decimal places of precision
         let new_rate = underlying_amount
             .fixed_div_floor(b_tokens_amount, SCALAR_9)
             .unwrap();
+
         // Calculate the total accrued interest - 7 decimal places of precision
         let accrued_interest = self
             .total_b_tokens
@@ -63,25 +67,10 @@ impl Reserve {
         let admin_fee = accrued_interest
             .fixed_mul_floor(storage::get_take_rate(e), SCALAR_7)
             .unwrap();
+        let accrued_b_tokens = admin_fee.fixed_div_floor(new_rate, SCALAR_9).unwrap();
 
-        // calculate admins accrued fees
-        let pct_accrual = admin_fee
-            .fixed_div_floor(new_rate, SCALAR_9)
-            .unwrap()
-            .fixed_div_floor(self.total_b_tokens, SCALAR_7)
-            .unwrap();
-        let accrued_shares = pct_accrual
-            .fixed_mul_floor(self.total_deposits, SCALAR_7)
-            .unwrap()
-            .fixed_div_floor(SCALAR_7 - pct_accrual, SCALAR_7)
-            .unwrap();
-
-        // Mint the admin fee to the admin address
-        let admin_address = storage::get_admin(e);
-        let total_fees = self.deposits.get(admin_address.clone()).unwrap_or(0);
-        self.deposits
-            .set(admin_address, total_fees + accrued_shares);
-        self.total_deposits += accrued_shares;
+        self.total_b_tokens = self.total_b_tokens - accrued_b_tokens;
+        self.accrued_fees = self.accrued_fees + accrued_b_tokens;
     }
 
     /// Deposits tokens into the reserve
@@ -167,14 +156,10 @@ impl Reserve {
 
 #[cfg(test)]
 mod tests {
-    use std::println;
 
-    use soroban_sdk::{
-        testutils::{Address as _, Ledger, LedgerInfo},
-        vec, Address,
-    };
+    use soroban_sdk::{testutils::Address as _, Address};
 
-    use crate::testutils::{create_fee_vault, register_fee_vault};
+    use crate::testutils::register_fee_vault;
 
     use super::*;
     #[test]
@@ -190,6 +175,7 @@ mod tests {
             total_b_tokens: 1000_0000000,
             total_deposits: 1200_0000000,
             b_rate: 1_100_000_000,
+            accrued_fees: 0,
         };
 
         // setup pool with deposits
@@ -216,6 +202,7 @@ mod tests {
             total_b_tokens: 1000_0000000,
             total_deposits: 1200_0000000,
             b_rate: 1_100_000_000,
+            accrued_fees: 0,
         };
 
         // setup pool with deposits
@@ -246,6 +233,7 @@ mod tests {
                 total_b_tokens: 1000_0000000,
                 total_deposits: 1200_0000000,
                 b_rate: 1_100_000_000,
+                accrued_fees: 0,
             };
 
             // Add the reserve to storage
@@ -326,6 +314,7 @@ mod tests {
                 total_b_tokens: 0,
                 total_deposits: 0,
                 b_rate: 1_000_000_000,
+                accrued_fees: 0,
             };
 
             // Add the reserve to storage
@@ -385,6 +374,7 @@ mod tests {
                 total_b_tokens: 2000_000_0000,
                 total_deposits: 2200_000_0000,
                 b_rate: 1_200_000_000,
+                accrued_fees: 0,
             };
 
             // Add the reserve to storage
@@ -452,6 +442,7 @@ mod tests {
                 total_b_tokens: 2000_000_0000,
                 total_deposits: 2200_000_0000,
                 b_rate: 1_200_000_000,
+                accrued_fees: 0,
             };
 
             // Add the reserve to storage
@@ -482,6 +473,7 @@ mod tests {
                 total_b_tokens: 2000_000_0000,
                 total_deposits: 2200_000_0000,
                 b_rate: 1_200_000_000,
+                accrued_fees: 0,
             };
 
             // Add the reserve to storage
@@ -512,6 +504,7 @@ mod tests {
                 total_b_tokens: 1000_0000000,
                 total_deposits: 1200_0000000,
                 b_rate: 1_100_000_000,
+                accrued_fees: 0,
             };
 
             // Add the reserve to storage
@@ -519,26 +512,25 @@ mod tests {
 
             let mut reserve = Reserve::load(&e, 0);
             // update b_rate to 1.2
-            let expected_accrued_fee = 20_3389003;
+            let expected_accrued_fee = 16_6666666;
             reserve.update_rate(&e, 120_000_0000, 100_000_0000);
             reserve.store(&e);
-            assert_eq!(
-                reserve.deposits.get(bombadil.clone()).unwrap(),
-                expected_accrued_fee
-            );
-            assert_eq!(reserve.total_deposits, 1200_000_0000 + expected_accrued_fee);
+            assert_eq!(reserve.accrued_fees, expected_accrued_fee);
+            assert_eq!(reserve.total_deposits, 1200_000_0000);
+            assert_eq!(reserve.total_b_tokens, 1000_0000000 - 16_6666666);
 
             // update b_rate to 1.5
-            let expected_accrued_fee_2 = 50_8474541;
+            let expected_accrued_fee_2 = 39_333_3333;
             reserve.update_rate(&e, 150_000_0000, 100_000_0000);
             reserve.store(&e);
             assert_eq!(
-                reserve.deposits.get(bombadil.clone()).unwrap(),
+                reserve.accrued_fees,
                 expected_accrued_fee + expected_accrued_fee_2
             );
+            assert_eq!(reserve.total_deposits, 1200_000_0000);
             assert_eq!(
-                reserve.total_deposits,
-                1200_000_0000 + expected_accrued_fee + expected_accrued_fee_2
+                reserve.total_b_tokens,
+                1000_0000000 - 16_6666666 - 39_333_3333
             );
         });
     }
@@ -551,6 +543,7 @@ mod tests {
 
         e.as_contract(&vault_address, || {
             let bombadil = Address::generate(&e);
+            let frodo = Address::generate(&e);
             storage::set_admin(&e, bombadil.clone());
 
             storage::set_take_rate(&e, 200_0000);
@@ -558,27 +551,29 @@ mod tests {
             let reserve_data = ReserveData {
                 address: Address::generate(&e),
                 deposits: Map::new(&e),
-                total_b_tokens: 50_000_0000000,
-                total_deposits: 50_000_0000000,
+                total_b_tokens: 500_000_0000000,
+                total_deposits: 500_000_0000000,
                 b_rate: 1_000_000_000,
+                accrued_fees: 0,
             };
 
             // Add the reserve to storage
             storage::set_reserve_data(&e, 0, reserve_data);
 
             let mut reserve = Reserve::load(&e, 0);
-            // update b_rate to 1.2
-            let expected_accrued_fee = 106_1283400;
-            reserve.update_rate(&e, 9999999999990, 9894986154500);
+            let expected_accrued_fee = 1050_1384549;
+            reserve.update_rate(&e, 1_000_0000000, 989_4986154);
+            reserve.deposit(frodo.clone(), 989_4986154);
             reserve.store(&e);
             assert_eq!(
-                reserve.deposits.get(bombadil.clone()).unwrap(),
-                expected_accrued_fee
+                reserve.total_b_tokens,
+                500_000_0000000 + 989_4986154 - expected_accrued_fee
             );
-            assert_eq!(
-                reserve.total_deposits,
-                50_000_0000000 + expected_accrued_fee
-            );
+            assert_eq!(reserve.total_deposits, 500_000_0000000 + 991_5812105);
+
+            assert_eq!(reserve.b_rate, 1_010_612_834);
+
+            assert_eq!(reserve.accrued_fees, expected_accrued_fee);
         });
     }
 }

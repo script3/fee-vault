@@ -23,22 +23,28 @@ pub(crate) fn create_fee_vault(
     blend_fixture: &BlendFixture,
     admin: Address,
     usdc: &StellarAssetClient,
+    xlm: &StellarAssetClient,
 ) -> Address {
     // Mint usdc to admin
     usdc.mock_all_auths().mint(&admin, &200_0000_0000000);
-
+    // Mint xlm to admin
+    xlm.mock_all_auths().mint(&admin, &200_0000_0000000);
     // set up oracle
     let (oracle, oracle_client) = create_mock_oracle(e);
     oracle_client.mock_all_auths().set_data(
         &admin,
         &Asset::Other(Symbol::new(&e, "USD")),
-        &vec![e, Asset::Stellar(usdc.address.clone())],
+        &vec![
+            e,
+            Asset::Stellar(usdc.address.clone()),
+            Asset::Stellar(xlm.address.clone()),
+        ],
         &7,
         &1,
     );
     oracle_client
         .mock_all_auths()
-        .set_price_stable(&vec![e, 1_000_0000]);
+        .set_price_stable(&vec![e, 1_000_0000, 100_0000]);
     let salt = BytesN::<32>::random(&e);
     let pool = blend_fixture.pool_factory.deploy(
         &admin,
@@ -46,7 +52,7 @@ pub(crate) fn create_fee_vault(
         &salt,
         &oracle,
         &200_0000,
-        &2,
+        &4,
     );
     let pool_client = PoolClient::new(e, &pool);
     blend_fixture
@@ -67,12 +73,29 @@ pub(crate) fn create_fee_vault(
     };
     pool_client.queue_set_reserve(&usdc.address, &reserve_config);
     pool_client.set_reserve(&usdc.address);
+    pool_client.queue_set_reserve(&xlm.address, &reserve_config);
+    pool_client.set_reserve(&xlm.address);
     let emission_config = vec![
         e,
         ReserveEmissionMetadata {
             res_index: 0,
             res_type: 0,
-            share: 1_000_0000,
+            share: 250_0000,
+        },
+        ReserveEmissionMetadata {
+            res_index: 0,
+            res_type: 1,
+            share: 250_0000,
+        },
+        ReserveEmissionMetadata {
+            res_index: 1,
+            res_type: 0,
+            share: 250_0000,
+        },
+        ReserveEmissionMetadata {
+            res_index: 1,
+            res_type: 1,
+            share: 250_0000,
         },
     ];
     pool_client.set_emissions_config(&emission_config);
@@ -95,6 +118,16 @@ pub(crate) fn create_fee_vault(
             amount: 100_0000_0000000,
             request_type: 4,
         },
+        Request {
+            address: xlm.address.clone(),
+            amount: 200_0000_0000000,
+            request_type: 2,
+        },
+        Request {
+            address: xlm.address.clone(),
+            amount: 100_0000_0000000,
+            request_type: 4,
+        },
     ];
     pool_client
         .mock_all_auths()
@@ -103,6 +136,7 @@ pub(crate) fn create_fee_vault(
     let client = FeeVaultClient::new(e, &address);
     client.initialize(&admin, &pool, &200_0000);
     client.add_reserve(&0, &usdc.address);
+    client.add_reserve(&1, &xlm.address);
     address
 }
 

@@ -1,4 +1,7 @@
-use crate::{errors::FeeVaultError, reserve::Reserve, storage, types::ReserveData, vault};
+use crate::{
+    dependencies::pool::Positions, errors::FeeVaultError, reserve::Reserve, storage,
+    types::ReserveData, vault,
+};
 
 use soroban_sdk::{contract, contractimpl, panic_with_error, Address, Env, Map, Vec};
 
@@ -105,6 +108,7 @@ impl FeeVault {
                     total_deposits: 0,
                     total_b_tokens: 0,
                     deposits: Map::new(&e),
+                    accrued_fees: 0,
                 },
             );
         }
@@ -144,15 +148,29 @@ impl FeeVault {
         vault::withdraw(e, &from, amount, id)
     }
 
+    /// Admin only
     /// Claims emissions for the given reserves from the pool
     ///
     /// Returns the amount of blnd tokens claimed
     ///
     /// ### Arguments
     /// * `id` - The ids of the reserves we're claiming emissions for
-    pub fn claim(e: &Env, ids: Vec<u32>) -> i128 {
+    pub fn claim_emissions(e: &Env, ids: Vec<u32>) -> i128 {
         let admin = storage::get_admin(&e);
         admin.require_auth();
         vault::claim(e, &admin, ids)
+    }
+
+    /// Admin only
+    /// Claims fees for the given reserves from the pool
+    ///
+    /// Returns the new vault positions
+    ///
+    /// ### Arguments
+    /// * `claims` - The ids of the reserves we're claiming fees for
+    pub fn claim_fees(e: &Env, claims: Vec<(u32, i128)>) -> Positions {
+        let admin = storage::get_admin(&e);
+        admin.require_auth();
+        vault::claim_fee(e, &admin, claims)
     }
 }

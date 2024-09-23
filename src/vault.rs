@@ -1,8 +1,8 @@
 use crate::{
-    dependencies::pool::{Client as PoolClient, Request},
+    dependencies::pool::{Client as PoolClient, Positions, Request},
     errors::FeeVaultError,
     reserve::Reserve,
-    storage::{self},
+    storage,
 };
 use soroban_sdk::{
     auth::{ContractContext, InvokerContractAuthEntry, SubContractInvocation},
@@ -106,4 +106,31 @@ pub fn claim(e: &Env, admin: &Address, reserve_ids: Vec<u32>) -> i128 {
     let pool = PoolClient::new(&e, &pool_address);
     // Claim the emissions - they are transferred to the admin address
     pool.claim(&e.current_contract_address(), &reserve_ids, &admin)
+}
+
+pub fn claim_fee(e: &Env, admin: &Address, claims: Vec<(u32, i128)>) -> Positions {
+    let pool_client = PoolClient::new(&e, &storage::get_pool(&e));
+    let mut requests: Vec<Request> = Vec::new(&e);
+    for (reserve_id, amount) in claims.clone() {
+        let reserve = Reserve::load(&e, reserve_id);
+        requests.push_front(Request {
+            address: reserve.address.clone(),
+            amount,
+            request_type: 1,
+        });
+    }
+    let pre_positions = pool_client.get_positions(&e.current_contract_address());
+    let new_positions =
+        pool_client.submit(&e.current_contract_address(), &admin, &admin, &requests);
+    for (reserve_id, _) in claims {
+        let supply_change = pre_positions.supply.get_unchecked(reserve_id)
+            - new_positions.supply.get_unchecked(reserve_id);
+        let mut reserve = Reserve::load(&e, reserve_id);
+        if reserve.accrued_fees < supply_change {
+            panic_with_error!(e, FeeVaultError::InsufficientAccruedFees);
+        }
+        reserve.accrued_fees = reserve.accrued_fees - supply_change;
+        reserve.store(e);
+    }
+    new_positions
 }
