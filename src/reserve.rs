@@ -57,13 +57,15 @@ impl Reserve {
             .total_b_tokens
             .fixed_mul_floor(new_rate - self.b_rate, SCALAR_9)
             .unwrap();
-        // Update the reserve's bRate
-        self.b_rate = new_rate;
 
         // Calculate the admin fee - 7 decimal places of precision
-        if accrued_interest <= 0 {
+        if accrued_interest <= 0 || self.b_rate == 1_000_000_000 {
+            // Update the reserve's bRate
+            self.b_rate = new_rate;
             return;
         }
+        // Update the reserve's bRate
+        self.b_rate = new_rate;
         let admin_fee = accrued_interest
             .fixed_mul_floor(storage::get_take_rate(e), SCALAR_7)
             .unwrap();
