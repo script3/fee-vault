@@ -187,7 +187,10 @@ impl FeeVault {
     /// Claims fees for the given reserves from the vault
     ///
     /// ### Arguments
-    /// * `claims` - The ids of the reserves we're claiming fees for
+    /// * `claims` - The ids of the reserves we're claiming fees for and the amount of underlying to withdraw from the blend pool
+    ///
+    /// ### Note
+    /// The amount of underlying to withdraw must be less than or equal to the amount of underlying that the accrued bTokens from fees are worth.
     ///
     /// ### Returns
     /// * `Positions` - The new vault positions

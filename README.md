@@ -105,3 +105,9 @@ It's difficult to correctly fully withdraw a users funds without introducing sig
 ## Accurately Reading Current User Underlying Balance
 
 It's difficult to accurately estimate the users current underlying balance in a read function. Instead we return the users underlying balance as of the last b_rate observed by the vault.
+
+## Claiming Fees Without an Amount Input
+
+For the above reason, and because accrued fees are stored in bTokens, it's impossible to know how much underlying the admin is allowed to withdraw from the underlying blend pool in accordance with their earned fees. Instead the admin must input how much underlying they want to withdraw and the vault will withdraw it from the blend pool. Then revert if the amount is too large.
+
+This means that if the admin wants to withdraw all or most of their fees they will have to check the current bRate on the blend pool contract first.
