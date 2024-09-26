@@ -11,6 +11,8 @@ pub struct Reserve {
     pub b_rate: i128, // The reserve's bRate
     pub total_deposits: i128, // The total deposits associated with the reserve
     pub total_b_tokens: i128, // The total bToken deposits associated with the reserve
+    // REVIEW: We need to place these into their own ledger entry keyed by user/asset otherwise this will be 
+    // too large, and be more specific about the unit (e.g. bTokens)
     pub deposits: Map<Address, i128>, // The user deposits associated with the reserve
     pub accrued_fees: i128, // The number of bTokens the admin has accrues
 }
@@ -52,6 +54,23 @@ impl Reserve {
             .fixed_div_floor(b_tokens_amount, SCALAR_9)
             .unwrap();
 
+        // REVIEW: This order/naming for calculating the admin take is a bit weird.
+        // Consider:
+        //
+        // let admin_take_b_tokens = self.total_b_tokens
+        //  .fixed_mul_floor(new_rate - self.b_rate, SCALAR_9).unwrap()
+        //  .fixed_mul_floor(storage::get_take_rate(e), SCALAR_7).unwrap()
+        //  .fixed_div_floor(new_rate, SCALAR_9);
+        //
+        // self.b_rate = new_rate;
+        //
+        // if admin_take_b_tokens <= 0 {
+        //    return;
+        // }
+        //
+        // self.total_b_tokens -= admin_take_b_tokens;
+        // self.accrued_fees += admin_take_b_tokens;
+
         // Calculate the total accrued interest - 7 decimal places of precision
         let accrued_interest = self
             .total_b_tokens
@@ -81,6 +100,11 @@ impl Reserve {
         let share_amount = if self.total_b_tokens == 0 || self.total_deposits == 0 {
             b_tokens_amount
         } else {
+            // REVIEW: It would make more sense if this function (and the other one) took care of the case where
+            // total_deposits === 0. Also - what are we doing about potential inflation attacks?
+            // On first read it appears to be safe since we track both numbers manually, and there is no
+            // donation function. However, it might be worth a callout via a comment at least if we are
+            // relying on no ability to donate.
             self.b_tokens_to_shares_down(b_tokens_amount)
         };
         // Update the user's balance
@@ -116,6 +140,7 @@ impl Reserve {
         self.total_b_tokens -= b_tokens_amount;
     }
 
+    // REVIEW: This function is not used
     /// Converts the underlying amount to shares
     /// Rounds down
     pub fn underlying_to_shares(&self, amount: i128) -> i128 {
@@ -134,6 +159,13 @@ impl Reserve {
     /// Converts the share amount to underlying
     /// Rounds down
     pub fn shares_to_underlying(&self, amount: i128) -> i128 {
+        // REVIEW: This is written in a fairly confusing way, consider:
+        //
+        // if self.total_b_tokens == 0 {
+        //     return amount.fixed_mul_floor(self.b_rate, SCALAR_9).unwrap();
+        // }
+        // amount.fixed_mul_floor(self.total_b_tokens, self.total_deposits);
+        // The formula for shares -> underying 
         amount
             .fixed_div_floor(self.total_deposits, self.total_b_tokens)
             .unwrap()
@@ -143,6 +175,12 @@ impl Reserve {
 
     /// Converts a b_token amount to shares rounding down
     pub fn b_tokens_to_shares_down(&self, amount: i128) -> i128 {
+        // REVIEW: This is written in a fairly confusing way, consider:
+        //
+        // if self.total_deposits == 0 {
+        //     return amount;
+        // }
+        // amount.fixed_mul_floor(self.total_deposits, self.total_b_tokens);
         amount
             .fixed_div_floor(self.total_b_tokens, self.total_deposits)
             .unwrap()
@@ -150,6 +188,12 @@ impl Reserve {
 
     /// Converts a b_token amount to shares rounding up
     pub fn b_tokens_to_shares_up(&self, amount: i128) -> i128 {
+        // REVIEW: This is written in a fairly confusing way, consider:
+        //
+        // if self.total_deposits == 0 {
+        //     return amount;
+        // }
+        // amount.fixed_mul_ceil(self.total_deposits, self.total_b_tokens);
         amount
             .fixed_div_ceil(self.total_b_tokens, self.total_deposits)
             .unwrap()

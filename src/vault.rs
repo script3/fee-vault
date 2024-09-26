@@ -15,6 +15,10 @@ use soroban_sdk::{
 pub fn deposit(e: &Env, from: &Address, amount: i128, reserve_id: u32) -> i128 {
     let mut reserve = Reserve::load(&e, reserve_id);
     let pool_address = storage::get_pool(&e);
+
+    // REVIEW: I don't think this auth is necessary. When we invoke the pool such that "from" is the
+    // spender, it will create the authorization necessary automatically as the pool is not spending funds.
+
     // Authorize the fee vault to transfer tokens on behalf of the user.
     e.authorize_as_current_contract(vec![
         &e,
@@ -64,6 +68,8 @@ pub fn deposit(e: &Env, from: &Address, amount: i128, reserve_id: u32) -> i128 {
 
 /// Executes a user withdrawal of a specific reserve from the underlying pool on behalf of the fee vault
 pub fn withdraw(e: &Env, from: &Address, amount: i128, reserve_id: u32) -> i128 {
+    // REVIEW: if we intake shares here, we should validate they don't over withdraw before we even invoke
+    // the pool.
     let mut reserve = Reserve::load(&e, reserve_id);
     let pool_address = storage::get_pool(&e);
     let pool = PoolClient::new(&e, &pool_address);

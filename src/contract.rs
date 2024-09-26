@@ -36,6 +36,20 @@ impl FeeVault {
 
     //********** Read-Only ***********//
 
+    // REVIEW: This is likely not accurate for wallets to use for display purposes. I don't expect users
+    // to interact with the vault nearly as often as the contract is touched. Thus, the b_rate here will always
+    // lag (and could potentially lag by a significant amount) behind the actual b_rate. 
+    //
+    // I'd prefer the following:
+    // - get_shares(user, asset): gets shares
+    // - shares_to_b_token_rate(asset): gets the b_rate
+    // 
+    // Usage would be as follows for wallet after they fetch the pubkey:
+    // - get_shares for user, convert to b_tokens by reading shares_to_b_token_rate
+    // - use blend-sdk-js to convert b_tokens to underlying
+    // - dispaly value
+    // - on withdraw, ref `get_shares` for max values
+
     /// Fetch a deposits for a user
     ///
     /// ### Arguments
@@ -154,6 +168,16 @@ impl FeeVault {
         from.require_auth();
         vault::deposit(e, &from, amount, reserve_id)
     }
+
+    // REVIEW: I think this would be better taken in as shares, to avoid any issues
+    // with dust. We could expose a "share_to_b_token_rate" function for wallets to consume.
+    // 
+    // As it sits currently, these is also some concern that dust shares could brick the vault.
+    // Token vaults as it stands have an expectation that if 0 tokens are in the vault, there
+    // are also 0 shares. Since we calculate the share value from the token removal, this might not
+    // be the case.
+    //
+    // Please see comment on get_deposits_in_underlying
 
     /// Withdraws tokens from the fee vault for a specific reserve
     ///
