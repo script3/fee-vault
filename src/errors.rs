@@ -19,4 +19,5 @@ pub enum FeeVaultError {
     ReserveAlreadyExists = 101,
     InsufficientBalance = 102,
     InsufficientAccruedFees = 103,
+    InvalidTakeRate = 104,
 }

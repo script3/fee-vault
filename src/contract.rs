@@ -20,12 +20,16 @@ impl FeeVault {
     /// ### Panics
     /// * `AlreadyInitializedError` - If the contract has already been initialized
     pub fn initialize(e: Env, admin: Address, pool: Address, take_rate: i128) {
+        admin.require_auth();
         if storage::get_is_init(&e) {
             panic_with_error!(&e, FeeVaultError::AlreadyInitializedError);
         }
         storage::set_is_init(&e);
         storage::set_admin(&e, admin);
         storage::set_pool(&e, pool);
+        if take_rate < 0 || take_rate > 1_000_0000 {
+            panic_with_error!(&e, FeeVaultError::InvalidTakeRate);
+        }
         storage::set_take_rate(&e, take_rate);
     }
 
@@ -82,6 +86,7 @@ impl FeeVault {
     /// * `e` - The environment object
     /// * `admin` - The new admin address to set
     pub fn set_admin(e: Env, admin: Address) {
+        admin.require_auth();
         storage::get_admin(&e).require_auth();
         storage::set_admin(&e, admin);
     }
