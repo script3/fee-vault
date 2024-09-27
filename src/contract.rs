@@ -1,8 +1,9 @@
 use crate::{
-    dependencies::pool::Positions, errors::FeeVaultError, reserve::Reserve, storage,
-    types::ReserveData, vault,
+    constants::SCALAR_7, dependencies::pool::Positions, errors::FeeVaultError, reserve::Reserve,
+    storage, types::ReserveData, vault,
 };
 
+use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::{contract, contractimpl, panic_with_error, Address, Env, Map, Vec};
 
 #[contract]
@@ -38,12 +39,12 @@ impl FeeVault {
 
     // REVIEW: This is likely not accurate for wallets to use for display purposes. I don't expect users
     // to interact with the vault nearly as often as the contract is touched. Thus, the b_rate here will always
-    // lag (and could potentially lag by a significant amount) behind the actual b_rate. 
+    // lag (and could potentially lag by a significant amount) behind the actual b_rate.
     //
     // I'd prefer the following:
     // - get_shares(user, asset): gets shares
     // - shares_to_b_token_rate(asset): gets the b_rate
-    // 
+    //
     // Usage would be as follows for wallet after they fetch the pubkey:
     // - get_shares for user, convert to b_tokens by reading shares_to_b_token_rate
     // - use blend-sdk-js to convert b_tokens to underlying
@@ -57,14 +58,14 @@ impl FeeVault {
     /// * `user` - The address of the user
     ///
     /// ### Returns
-    /// * `Map<Address, i128>` - A map of underlying addresses and underlying deposit amounts
-    pub fn get_deposits_in_underlying(e: Env, ids: Vec<u32>, user: Address) -> Map<Address, i128> {
+    /// * `Map<Address, i128>` - A map of underlying addresses and underlying deposit amounts in shares
+    pub fn get_deposits(e: Env, ids: Vec<u32>, user: Address) -> Map<Address, i128> {
         let mut result = Map::new(&e);
         for id in ids.iter() {
             let reserve = Reserve::load(&e, id);
             result.set(
                 reserve.address.clone(),
-                reserve.shares_to_underlying(reserve.deposits.get(user.clone()).unwrap_or(0)),
+                reserve.deposits.get(user.clone()).unwrap_or(0),
             );
         }
         result
@@ -87,6 +88,28 @@ impl FeeVault {
     /// * `ReserveData` - The reserve data
     pub fn get_reserve_data(e: Env, id: u32) -> ReserveData {
         storage::get_reserve_data(&e, id).unwrap()
+    }
+
+    /// Get the shares_to_b_token_rate for a set of reserves
+    ///
+    /// ### Arguments
+    /// * `ids` - The ids of the reserves
+    ///
+    /// ### Returns
+    /// * `Map<Address, i128>` - The shares_to_b_token_rate for each reserve
+    pub fn get_shares_to_b_token_rate(e: Env, ids: Vec<u32>) -> Map<Address, i128> {
+        let mut result = Map::new(&e);
+        for id in ids.iter() {
+            let reserve = Reserve::load(&e, id);
+            result.set(
+                reserve.address.clone(),
+                reserve
+                    .total_b_tokens
+                    .fixed_div_floor(reserve.total_deposits, SCALAR_7)
+                    .unwrap(),
+            );
+        }
+        result
     }
 
     //********** Read-Write ***********//
@@ -171,7 +194,7 @@ impl FeeVault {
 
     // REVIEW: I think this would be better taken in as shares, to avoid any issues
     // with dust. We could expose a "share_to_b_token_rate" function for wallets to consume.
-    // 
+    //
     // As it sits currently, these is also some concern that dust shares could brick the vault.
     // Token vaults as it stands have an expectation that if 0 tokens are in the vault, there
     // are also 0 shares. Since we calculate the share value from the token removal, this might not
