@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, unwrap::UnwrapOptimized, Address, Env, Map, Symbol};
+use soroban_sdk::{unwrap::UnwrapOptimized, Address, Env, Map, Symbol};
 
 use crate::types::ReserveData;
 
@@ -8,13 +8,6 @@ const POOL_KEY: &str = "Pool";
 const ADMIN_KEY: &str = "Admin";
 const IS_INIT_KEY: &str = "IsInit";
 const TAKE_RATE_KEY: &str = "TakeRate";
-
-#[derive(Clone)]
-#[contracttype]
-pub struct DepositKey {
-    id: u32,
-    user: Address,
-}
 
 //********** Storage Utils **********//
 
@@ -119,7 +112,8 @@ pub fn get_reserve_data(e: &Env, reserve_id: u32) -> Option<ReserveData> {
 }
 
 /// Get a user's deposits
-pub fn get_user(e: &Env, user: &Address) -> Map<u32, i128> {
+/// deposit amount stored in shares, 7 decimal places of precision
+pub fn get_user_deposits(e: &Env, user: &Address) -> Map<u32, i128> {
     let result = e
         .storage()
         .persistent()
@@ -135,7 +129,8 @@ pub fn get_user(e: &Env, user: &Address) -> Map<u32, i128> {
 }
 
 /// Set a user's deposits
-pub fn set_user(e: &Env, user: &Address, data: Map<u32, i128>) {
+/// deposit amount stored in shares, 7 decimal places of precision
+pub fn set_user_deposits(e: &Env, user: &Address, data: Map<u32, i128>) {
     e.storage()
         .persistent()
         .set::<Address, Map<u32, i128>>(user, &data);

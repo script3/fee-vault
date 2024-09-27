@@ -3,39 +3,15 @@ use crate::{
     errors::FeeVaultError,
     reserve::Reserve,
     storage,
+    user::User,
 };
-use soroban_sdk::{
-    auth::{ContractContext, InvokerContractAuthEntry, SubContractInvocation},
-    panic_with_error,
-    token::TokenClient,
-    vec, Address, Env, IntoVal, Symbol, Vec,
-};
+use soroban_sdk::{panic_with_error, token::TokenClient, vec, Address, Env, Vec};
 
 /// Executes a deposit of a specific reserve into the underlying pool on behalf of the fee vault
 pub fn deposit(e: &Env, from: &Address, amount: i128, reserve_id: u32) -> i128 {
     let mut reserve = Reserve::load(&e, reserve_id);
     let pool_address = storage::get_pool(&e);
 
-    // REVIEW: I don't think this auth is necessary. When we invoke the pool such that "from" is the
-    // spender, it will create the authorization necessary automatically as the pool is not spending funds.
-
-    // Authorize the fee vault to transfer tokens on behalf of the user.
-    e.authorize_as_current_contract(vec![
-        &e,
-        InvokerContractAuthEntry::Contract(SubContractInvocation {
-            context: ContractContext {
-                contract: reserve.address.clone(),
-                fn_name: Symbol::new(&e, "transfer"),
-                args: vec![
-                    &e,
-                    from.into_val(e),
-                    pool_address.into_val(e),
-                    amount.into_val(e),
-                ],
-            },
-            sub_invocations: Vec::new(&e),
-        }),
-    ]);
     let pool = PoolClient::new(&e, &pool_address);
     // Get deposit amount pre-supply
     let pre_supply = pool
@@ -61,7 +37,10 @@ pub fn deposit(e: &Env, from: &Address, amount: i128, reserve_id: u32) -> i128 {
     let b_tokens_amount = new_positions.supply.get_unchecked(reserve_id) - pre_supply;
     // Update the reserve's bRate and deposit the tokens
     reserve.update_rate(e, amount, b_tokens_amount);
-    reserve.deposit(from.clone(), b_tokens_amount);
+    let share_amount = reserve.deposit(b_tokens_amount);
+    let mut user = User::load(e, from.clone());
+    user.deposit(reserve_id, share_amount);
+    user.store(e);
     reserve.store(e);
     b_tokens_amount
 }
@@ -101,7 +80,10 @@ pub fn withdraw(e: &Env, from: &Address, amount: i128, reserve_id: u32) -> i128 
     let b_tokens_amount = pre_supply - new_positions.supply.get_unchecked(reserve_id);
     // Update the reserve's bRate and withdraw the tokens
     reserve.update_rate(e, real_amount, b_tokens_amount);
-    reserve.withdraw(e, from.clone(), b_tokens_amount);
+    let share_amount = reserve.withdraw(e, b_tokens_amount);
+    let mut user = User::load(e, from.clone());
+    user.withdraw(e, reserve_id, share_amount);
+    user.store(e);
     reserve.store(e);
     b_tokens_amount
 }

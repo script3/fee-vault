@@ -1,9 +1,8 @@
 use crate::{
-    constants::SCALAR_7, dependencies::pool::Positions, errors::FeeVaultError, reserve::Reserve,
-    storage, types::ReserveData, vault,
+    dependencies::pool::Positions, errors::FeeVaultError, reserve::Reserve, storage,
+    types::ReserveData, user::User, vault,
 };
 
-use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::{contract, contractimpl, panic_with_error, Address, Env, Map, Vec};
 
 #[contract]
@@ -37,20 +36,6 @@ impl FeeVault {
 
     //********** Read-Only ***********//
 
-    // REVIEW: This is likely not accurate for wallets to use for display purposes. I don't expect users
-    // to interact with the vault nearly as often as the contract is touched. Thus, the b_rate here will always
-    // lag (and could potentially lag by a significant amount) behind the actual b_rate.
-    //
-    // I'd prefer the following:
-    // - get_shares(user, asset): gets shares
-    // - shares_to_b_token_rate(asset): gets the b_rate
-    //
-    // Usage would be as follows for wallet after they fetch the pubkey:
-    // - get_shares for user, convert to b_tokens by reading shares_to_b_token_rate
-    // - use blend-sdk-js to convert b_tokens to underlying
-    // - dispaly value
-    // - on withdraw, ref `get_shares` for max values
-
     /// Fetch a deposits for a user
     ///
     /// ### Arguments
@@ -61,12 +46,10 @@ impl FeeVault {
     /// * `Map<Address, i128>` - A map of underlying addresses and underlying deposit amounts in shares
     pub fn get_deposits(e: Env, ids: Vec<u32>, user: Address) -> Map<Address, i128> {
         let mut result = Map::new(&e);
+        let user = User::load(&e, user);
         for id in ids.iter() {
             let reserve = Reserve::load(&e, id);
-            result.set(
-                reserve.address.clone(),
-                reserve.deposits.get(user.clone()).unwrap_or(0),
-            );
+            result.set(reserve.address.clone(), user.deposits.get(id).unwrap_or(0));
         }
         result
     }
@@ -93,23 +76,13 @@ impl FeeVault {
     /// Get the shares_to_b_token_rate for a set of reserves
     ///
     /// ### Arguments
-    /// * `ids` - The ids of the reserves
+    /// * `id` - The id of the reserve
+    /// * `share_amount` - The amount of shares to convert to b_tokens
     ///
     /// ### Returns
-    /// * `Map<Address, i128>` - The shares_to_b_token_rate for each reserve
-    pub fn get_shares_to_b_token_rate(e: Env, ids: Vec<u32>) -> Map<Address, i128> {
-        let mut result = Map::new(&e);
-        for id in ids.iter() {
-            let reserve = Reserve::load(&e, id);
-            result.set(
-                reserve.address.clone(),
-                reserve
-                    .total_b_tokens
-                    .fixed_div_floor(reserve.total_deposits, SCALAR_7)
-                    .unwrap(),
-            );
-        }
-        result
+    /// * `i128` - The number of b_tokens the shares are worth
+    pub fn shares_to_b_token(e: Env, id: u32, share_amount: i128) -> i128 {
+        Reserve::load(&e, id).shares_to_b_tokens_down(share_amount)
     }
 
     //********** Read-Write ***********//
@@ -171,7 +144,6 @@ impl FeeVault {
                     b_rate: 1_000_000_000,
                     total_deposits: 0,
                     total_b_tokens: 0,
-                    deposits: Map::new(&e),
                     accrued_fees: 0,
                 },
             );

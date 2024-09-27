@@ -11,6 +11,7 @@ pub mod reserve;
 pub mod storage;
 pub mod testutils;
 pub mod types;
+pub mod user;
 pub mod vault;
 
 pub use contract::*;

@@ -1,6 +1,8 @@
 #![cfg(test)]
 
-use crate::constants::{SCALAR_7, SCALAR_9};
+use std::println;
+
+use crate::constants::SCALAR_9;
 use crate::dependencies::pool::{Client as PoolClient, Request};
 use crate::storage::ONE_DAY_LEDGERS;
 use crate::testutils::{assert_approx_eq_abs, create_fee_vault, EnvTestUtils};
@@ -38,12 +40,43 @@ fn test_happy_path() {
         &xlm_client,
     );
     let fee_vault_client = FeeVaultClient::new(&e, &fee_vault);
-    let pool_address = fee_vault_client.get_pool();
-    let pool_client = PoolClient::new(&e, &pool_address);
+
     // mint frodo usdc
     usdc_client.mint(&frodo, &100_0000_0000000);
     // mint frodo xlm
     xlm_client.mint(&frodo, &100_0000_0000000);
+    let pool_address = fee_vault_client.get_pool();
+    let pool_client = PoolClient::new(&e, &pool_address);
+    //bump pool b_rate
+    e.jump(1);
+    pool_client.submit(
+        &bombadil,
+        &bombadil,
+        &bombadil,
+        &vec![
+            &e,
+            Request {
+                address: xlm.clone(),
+                amount: 100,
+                request_type: 0,
+            },
+            Request {
+                address: xlm.clone(),
+                amount: 100,
+                request_type: 1,
+            },
+            Request {
+                address: usdc.clone(),
+                amount: 100,
+                request_type: 0,
+            },
+            Request {
+                address: usdc.clone(),
+                amount: 100,
+                request_type: 1,
+            },
+        ],
+    );
     // deposit usdc in fee vault
     let b_tokens_received =
         fee_vault_client
@@ -60,27 +93,24 @@ fn test_happy_path() {
         .get_unchecked(0);
     assert_eq!(vault_balance, b_tokens_received);
     // withdraw some usdc from fee vault
-    let pre_withdrawal_balance = usdc_token.balance(&frodo);
+    usdc_token.balance(&frodo);
     let pre_vault_balance = pool_client
         .get_positions(&fee_vault)
         .supply
         .get_unchecked(0);
-    let withdrawn_amount = fee_vault_client.withdraw(&frodo, &0, &50_0000_0000000);
+    fee_vault_client.withdraw(&frodo, &0, &50_0000_0000000);
     let post_withdrawal_balance = usdc_token.balance(&frodo);
     let post_vault_balance = pool_client
         .get_positions(&fee_vault)
         .supply
         .get_unchecked(0);
-    assert_eq!(
-        post_withdrawal_balance,
-        pre_withdrawal_balance + withdrawn_amount
-    );
-    assert_eq!(post_vault_balance, pre_vault_balance / 2);
+    assert_eq!(post_withdrawal_balance, 50_0000_0000000);
+    assert_eq!(post_vault_balance, pre_vault_balance / 2 - 1);
     let vault_balance = pool_client
         .get_positions(&fee_vault)
         .supply
         .get_unchecked(0);
-    assert_eq!(vault_balance, b_tokens_received / 2);
+    assert_eq!(vault_balance, b_tokens_received / 2 - 1);
 
     let accrued_fees = fee_vault_client.get_reserve_data(&0).accrued_fees;
     assert_eq!(accrued_fees, 0);
@@ -129,50 +159,60 @@ fn test_happy_path() {
     let pre_vault_b_tokens = pool_client.get_positions(&fee_vault).supply.get(0).unwrap();
     let pre_merry_balance = usdc_token.balance(&merry);
     let b_tokens_received = fee_vault_client.deposit(&merry, &100_0000_0000000, &0);
+    println!("b_tokens_received: {}", b_tokens_received);
+    println!(
+        "in underlying {}",
+        b_tokens_received.fixed_mul_floor(b_rate, SCALAR_9).unwrap()
+    );
+    println!(
+        "total deposits: {}",
+        fee_vault_client.get_reserve_data(&0).total_deposits
+    );
+    println!(
+        "total b tokens: {}",
+        fee_vault_client.get_reserve_data(&0).total_b_tokens
+    );
+
+    println!("b_rate: {}", b_rate);
     let post_merry_balance = usdc_token.balance(&merry);
     assert_eq!(post_merry_balance, pre_merry_balance - 100_0000_0000000);
     let post_vault_b_tokens = pool_client.get_positions(&fee_vault).supply.get(0).unwrap();
 
     assert_eq!(pre_vault_b_tokens + b_tokens_received, post_vault_b_tokens);
     let deposit_amount = fee_vault_client
-        .get_deposits(&vec![&e, 0], &merry)
-        .get(usdc.clone())
-        .unwrap()
-        .fixed_mul_floor(
-            fee_vault_client
-                .get_shares_to_b_token_rate(&vec![&e, 0])
+        .shares_to_b_token(
+            &0,
+            &fee_vault_client
+                .get_deposits(&vec![&e, 0], &merry)
                 .get(usdc.clone())
                 .unwrap(),
-            SCALAR_7,
         )
-        .unwrap()
         .fixed_mul_floor(b_rate, SCALAR_9)
         .unwrap();
-
+    println!(
+        "accrued fees: {}",
+        fee_vault_client.get_reserve_data(&0).accrued_fees
+    );
     let withdraw_amount = fee_vault_client.withdraw(&merry, &0, &99_9999_9999990);
     let post_withdraw_deposit_amount = fee_vault_client
-        .get_deposits(&vec![&e, 0], &merry)
-        .get(usdc.clone())
-        .unwrap()
-        .fixed_mul_floor(
-            fee_vault_client
-                .get_shares_to_b_token_rate(&vec![&e, 0])
+        .shares_to_b_token(
+            &0,
+            &fee_vault_client
+                .get_deposits(&vec![&e, 0], &merry)
                 .get(usdc.clone())
                 .unwrap(),
-            SCALAR_7,
         )
-        .unwrap()
         .fixed_mul_floor(b_rate, SCALAR_9)
         .unwrap();
     assert_eq!(post_withdraw_deposit_amount, 0);
-    assert_eq!(withdraw_amount, 989_498_615_4500);
+    assert_eq!(withdraw_amount, 9894985351632);
     assert_eq!(usdc_token.balance(&merry), 100_0000_0000000 + 99999999989);
-    assert_eq!(deposit_amount, 999_999_999_9999);
+    assert_eq!(deposit_amount, 999999_999_9998);
 
     let reserve_data = fee_vault_client.get_reserve_data(&0);
     // check accrued fees
     let accrued_fees = reserve_data.accrued_fees;
-    assert_approx_eq_abs(accrued_fees, 1050_1384549, 1000);
+    assert_approx_eq_abs(accrued_fees, 1050_1385824, 1000);
     // check that b_tokens are not exceeded
     let positions = pool_client.get_positions(&fee_vault);
     assert!(
@@ -182,16 +222,16 @@ fn test_happy_path() {
         positions.supply.get(0).unwrap(),
         reserve_data.total_b_tokens + reserve_data.accrued_fees
     );
+
     // check frodo deposit
-    let frodo_deposit_amount = fee_vault_client
-        .get_deposits(&vec![&e, 0], &frodo)
-        .get(usdc.clone())
-        .unwrap();
-    assert_approx_eq_abs(
-        frodo_deposit_amount,
-        (500_000_0000000 - 1050_1384549) * b_rate / 1_000_000_000,
-        10000,
+    let frodo_deposit_amount = fee_vault_client.shares_to_b_token(
+        &0,
+        &fee_vault_client
+            .get_deposits(&vec![&e, 0], &frodo)
+            .get(usdc.clone())
+            .unwrap(),
     );
+    assert_approx_eq_abs(frodo_deposit_amount, 499_999_9600000 - accrued_fees, 10000);
     blend_fixture.emitter.distribute();
     blend_fixture.backstop.gulp_emissions();
     pool_client.gulp_emissions();
@@ -201,18 +241,10 @@ fn test_happy_path() {
     blend_fixture.emitter.distribute();
     blend_fixture.backstop.gulp_emissions();
     pool_client.gulp_emissions();
-    fee_vault_client.withdraw(&frodo, &1, &5039_6041670);
+    fee_vault_client.withdraw(&frodo, &1, &5039_6041790);
     let frodo_deposit = fee_vault_client
         .get_deposits(&vec![&e, 1], &frodo)
         .get(xlm.clone())
-        .unwrap()
-        .fixed_mul_floor(
-            fee_vault_client
-                .get_shares_to_b_token_rate(&vec![&e, 1])
-                .get(xlm.clone())
-                .unwrap(),
-            SCALAR_7,
-        )
         .unwrap();
     assert_eq!(frodo_deposit, 0);
 

@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address, Map};
+use soroban_sdk::{contracttype, Address};
 
 #[derive(Clone)]
 #[contracttype]
@@ -10,8 +10,6 @@ pub struct ReserveData {
     pub total_deposits: i128,
     /// Total bToken deposits associated with the reserve
     pub total_b_tokens: i128,
-    /// The user deposits associated with the reserve
-    pub deposits: Map<Address, i128>,
     /// The number of bTokens the admin has accrued for this reserve
     pub accrued_fees: i128,
 }
