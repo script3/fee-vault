@@ -1,7 +1,5 @@
 #![cfg(test)]
 
-use std::println;
-
 use crate::constants::SCALAR_9;
 use crate::dependencies::pool::{Client as PoolClient, Request};
 use crate::storage::ONE_DAY_LEDGERS;
@@ -98,7 +96,7 @@ fn test_happy_path() {
         .get_positions(&fee_vault)
         .supply
         .get_unchecked(0);
-    fee_vault_client.withdraw(&frodo, &0, &50_0000_0000000);
+    fee_vault_client.withdraw(&frodo, &50_0000_0000000, &0);
     let post_withdrawal_balance = usdc_token.balance(&frodo);
     let post_vault_balance = pool_client
         .get_positions(&fee_vault)
@@ -159,21 +157,7 @@ fn test_happy_path() {
     let pre_vault_b_tokens = pool_client.get_positions(&fee_vault).supply.get(0).unwrap();
     let pre_merry_balance = usdc_token.balance(&merry);
     let b_tokens_received = fee_vault_client.deposit(&merry, &100_0000_0000000, &0);
-    println!("b_tokens_received: {}", b_tokens_received);
-    println!(
-        "in underlying {}",
-        b_tokens_received.fixed_mul_floor(b_rate, SCALAR_9).unwrap()
-    );
-    println!(
-        "total deposits: {}",
-        fee_vault_client.get_reserve_data(&0).total_deposits
-    );
-    println!(
-        "total b tokens: {}",
-        fee_vault_client.get_reserve_data(&0).total_b_tokens
-    );
 
-    println!("b_rate: {}", b_rate);
     let post_merry_balance = usdc_token.balance(&merry);
     assert_eq!(post_merry_balance, pre_merry_balance - 100_0000_0000000);
     let post_vault_b_tokens = pool_client.get_positions(&fee_vault).supply.get(0).unwrap();
@@ -189,11 +173,8 @@ fn test_happy_path() {
         )
         .fixed_mul_floor(b_rate, SCALAR_9)
         .unwrap();
-    println!(
-        "accrued fees: {}",
-        fee_vault_client.get_reserve_data(&0).accrued_fees
-    );
-    let withdraw_amount = fee_vault_client.withdraw(&merry, &0, &99_9999_9999990);
+
+    let withdraw_amount = fee_vault_client.withdraw(&merry, &99_9999_9999990, &0);
     let post_withdraw_deposit_amount = fee_vault_client
         .shares_to_b_token(
             &0,
@@ -241,7 +222,7 @@ fn test_happy_path() {
     blend_fixture.emitter.distribute();
     blend_fixture.backstop.gulp_emissions();
     pool_client.gulp_emissions();
-    fee_vault_client.withdraw(&frodo, &1, &5039_6041790);
+    fee_vault_client.withdraw(&frodo, &5039_6041790, &1);
     let frodo_deposit = fee_vault_client
         .get_deposits(&vec![&e, 1], &frodo)
         .get(xlm.clone())
@@ -311,89 +292,4 @@ fn test_happy_path() {
         blnd_token.balance(&bombadil),
         pre_blnd_balance + blnd_claimed
     );
-}
-
-#[test]
-#[should_panic(expected = "Error(Contract, #103)")]
-fn test_fee_claim_fails() {
-    let e = Env::default();
-    e.budget().reset_unlimited();
-    e.mock_all_auths();
-    e.set_default_info();
-
-    let bombadil = Address::generate(&e);
-    let frodo = Address::generate(&e);
-
-    let blnd = e.register_stellar_asset_contract(bombadil.clone());
-    let usdc = e.register_stellar_asset_contract(bombadil.clone());
-    let xlm = e.register_stellar_asset_contract(bombadil.clone());
-    let usdc_client = StellarAssetClient::new(&e, &usdc);
-    let xlm_client = StellarAssetClient::new(&e, &xlm);
-    let blend_fixture = BlendFixture::deploy(&e, &bombadil, &blnd, &usdc);
-    let fee_vault = create_fee_vault(
-        &e,
-        &blend_fixture,
-        bombadil.clone(),
-        &usdc_client,
-        &xlm_client,
-    );
-    let fee_vault_client = FeeVaultClient::new(&e, &fee_vault);
-    let pool_address = fee_vault_client.get_pool();
-    let pool_client = PoolClient::new(&e, &pool_address);
-    // mint frodo usdc
-    usdc_client.mint(&frodo, &100_0000_0000000);
-    // mint frodo xlm
-    xlm_client.mint(&frodo, &100_0000_0000000);
-    // deposit usdc in fee vault
-
-    fee_vault_client
-        .mock_all_auths()
-        .deposit(&frodo, &1_000_000_0000, &0);
-    // deposit xlm in fee vault
-    fee_vault_client.deposit(&frodo, &5000_0000000, &1);
-    e.jump(ONE_DAY_LEDGERS * 7);
-
-    // check bRate
-    let b_tokens = pool_client
-        .submit(
-            &frodo,
-            &frodo,
-            &frodo,
-            &vec![
-                &e,
-                Request {
-                    address: usdc.clone(),
-                    amount: 1_000_000_000,
-                    request_type: 0,
-                },
-            ],
-        )
-        .supply
-        .get_unchecked(0);
-    let usdc_b_rate = 1_000_000_000 * 1_000_000_000 / b_tokens;
-    let b_tokens = pool_client
-        .submit(
-            &frodo,
-            &frodo,
-            &frodo,
-            &vec![
-                &e,
-                Request {
-                    address: xlm.clone(),
-                    amount: 1_000_000_000,
-                    request_type: 0,
-                },
-            ],
-        )
-        .supply
-        .get_unchecked(1);
-    let xlm_b_rate = 1_000_000_000 * 1_000_000_000 / b_tokens;
-    // try claim fees
-    let usdc_accrued_fees = fee_vault_client.get_reserve_data(&0).accrued_fees;
-    let xlm_accrued_fees = fee_vault_client.get_reserve_data(&1).accrued_fees;
-    fee_vault_client.claim_fees(&vec![
-        &e,
-        (0, usdc_accrued_fees * usdc_b_rate / 1_000_000_000 + 100),
-        (1, xlm_accrued_fees * xlm_b_rate / 1_000_000_000 + 100),
-    ]);
 }

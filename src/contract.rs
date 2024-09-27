@@ -178,14 +178,14 @@ impl FeeVault {
     ///
     /// ### Arguments
     /// * `from` - The address of the user making the withdrawal
-    /// * `id` - The ID of the reserve to withdraw from
     /// * `amount` - The amount of tokens to withdraw
+    /// * `reserve_id` - The ID of the reserve to withdraw from
     ///
     /// ### Returns
     /// * `i128` - The amount of b_tokens withdrawn
-    pub fn withdraw(e: &Env, from: Address, id: u32, amount: i128) -> i128 {
+    pub fn withdraw(e: &Env, from: Address, amount: i128, reserve_id: u32) -> i128 {
         from.require_auth();
-        vault::withdraw(e, &from, amount, id)
+        vault::withdraw(e, &from, amount, reserve_id)
     }
 
     /// ADMIN ONLY
