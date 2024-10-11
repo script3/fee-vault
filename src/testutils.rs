@@ -1,5 +1,7 @@
 #![cfg(test)]
 
+use core::ops::Add;
+
 use crate::{
     constants::SCALAR_7,
     dependencies::pool::{Client as PoolClient, Request, ReserveConfig, ReserveEmissionMetadata},
@@ -7,6 +9,7 @@ use crate::{
     FeeVault, FeeVaultClient,
 };
 use blend_contract_sdk::testutils::BlendFixture;
+use sep_41_token::testutils::MockTokenClient;
 use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::{
     testutils::{Address as _, BytesN as _, Ledger as _, LedgerInfo},
@@ -18,20 +21,21 @@ pub(crate) fn register_fee_vault(e: &Env) -> Address {
     e.register_contract(None, FeeVault {})
 }
 
-pub(crate) fn create_fee_vault(
+pub(crate) fn create_blend_pool(
     e: &Env,
     blend_fixture: &BlendFixture,
-    admin: Address,
-    usdc: &StellarAssetClient,
-    xlm: &StellarAssetClient,
+    admin: &Address,
+    usdc: &MockTokenClient,
+    xlm: &MockTokenClient,
 ) -> Address {
     // Mint usdc to admin
-    usdc.mock_all_auths().mint(&admin, &200_0000_0000000);
+    usdc.mint(&admin, &200_000_0000000);
     // Mint xlm to admin
-    xlm.mock_all_auths().mint(&admin, &200_0000_0000000);
+    xlm.mint(&admin, &200_000_0000000);
+
     // set up oracle
     let (oracle, oracle_client) = create_mock_oracle(e);
-    oracle_client.mock_all_auths().set_data(
+    oracle_client.set_data(
         &admin,
         &Asset::Other(Symbol::new(&e, "USD")),
         &vec![
@@ -40,18 +44,16 @@ pub(crate) fn create_fee_vault(
             Asset::Stellar(xlm.address.clone()),
         ],
         &7,
-        &1,
+        &300,
     );
-    oracle_client
-        .mock_all_auths()
-        .set_price_stable(&vec![e, 1_000_0000, 100_0000]);
+    oracle_client.set_price_stable(&vec![e, 1_000_0000, 100_0000]);
     let salt = BytesN::<32>::random(&e);
     let pool = blend_fixture.pool_factory.deploy(
         &admin,
         &String::from_str(e, "TEST"),
         &salt,
         &oracle,
-        &200_0000,
+        &0,
         &4,
     );
     let pool_client = PoolClient::new(e, &pool);
@@ -65,10 +67,10 @@ pub(crate) fn create_fee_vault(
         l_factor: 900_0000,
         max_util: 900_0000,
         reactivity: 0,
-        r_base: 500_0000,
-        r_one: 500_0000,
-        r_two: 500_0000,
-        r_three: 500_0000,
+        r_base: 100_0000,
+        r_one: 0,
+        r_two: 0,
+        r_three: 0,
         util: 0,
     };
     pool_client.queue_set_reserve(&usdc.address, &reserve_config);
@@ -99,44 +101,50 @@ pub(crate) fn create_fee_vault(
         },
     ];
     pool_client.set_emissions_config(&emission_config);
-    pool_client.mock_all_auths().set_status(&0);
-    blend_fixture
-        .backstop
-        .mock_all_auths()
-        .add_reward(&pool, &pool);
+    pool_client.set_status(&0);
+    blend_fixture.backstop.add_reward(&pool, &pool);
+
+    // wait a week and start emissions
+    e.jump(ONE_DAY_LEDGERS * 7);
+    blend_fixture.emitter.distribute();
+    blend_fixture.backstop.gulp_emissions();
+    pool_client.gulp_emissions();
 
     // admin joins pool
     let requests = vec![
         e,
         Request {
             address: usdc.address.clone(),
-            amount: 200_0000_0000000,
+            amount: 200_000_0000000,
             request_type: 2,
         },
         Request {
             address: usdc.address.clone(),
-            amount: 100_0000_0000000,
+            amount: 100_000_0000000,
             request_type: 4,
         },
         Request {
             address: xlm.address.clone(),
-            amount: 200_0000_0000000,
+            amount: 200_000_0000000,
             request_type: 2,
         },
         Request {
             address: xlm.address.clone(),
-            amount: 100_0000_0000000,
+            amount: 100_000_0000000,
             request_type: 4,
         },
     ];
     pool_client
         .mock_all_auths()
         .submit(&admin, &admin, &admin, &requests);
+    return pool;
+}
+
+/// Create a fee vault
+pub(crate) fn create_fee_vault(e: &Env, admin: &Address, pool: &Address) -> Address {
     let address = register_fee_vault(e);
     let client = FeeVaultClient::new(e, &address);
-    client.initialize(&admin, &pool, &200_0000);
-    client.add_reserve(&0, &usdc.address);
-    client.add_reserve(&1, &xlm.address);
+    client.initialize(&admin, &pool, &100_0000);
     address
 }
 

@@ -1,6 +1,6 @@
-use soroban_sdk::{unwrap::UnwrapOptimized, Address, Env, Map, Symbol};
+use soroban_sdk::{contracttype, panic_with_error, unwrap::UnwrapOptimized, Address, Env, Symbol};
 
-use crate::types::ReserveData;
+use crate::{errors::FeeVaultError, reserve_vault::ReserveVault};
 
 //********** Storage Keys **********//
 
@@ -8,6 +8,20 @@ const POOL_KEY: &str = "Pool";
 const ADMIN_KEY: &str = "Admin";
 const IS_INIT_KEY: &str = "IsInit";
 const TAKE_RATE_KEY: &str = "TakeRate";
+
+#[derive(Clone)]
+#[contracttype]
+pub struct DepositKey {
+    reserve: Address, // the reserve asset address
+    user: Address,    // the user who owns the deposit
+}
+
+#[derive(Clone)]
+#[contracttype]
+pub enum FeeVaultDataKey {
+    Deposit(DepositKey),
+    ResVault(Address),
+}
 
 //********** Storage Utils **********//
 
@@ -87,54 +101,88 @@ pub fn set_take_rate(e: &Env, take_rate: i128) {
 
 /********** Persistent **********/
 
-/// Set a reserve's data
-pub fn set_reserve_data(e: &Env, reserve_id: u32, data: ReserveData) {
+/// Set a reserve's vault data
+///
+/// ### Arguments
+/// * `reserve` - The address of the reserve asset
+/// * `vault` - The reserve vault data
+pub fn set_reserve_vault(e: &Env, reserve: &Address, vault: &ReserveVault) {
+    let key = FeeVaultDataKey::ResVault(reserve.clone());
     e.storage()
         .persistent()
-        .set::<u32, ReserveData>(&reserve_id, &data);
+        .set::<FeeVaultDataKey, ReserveVault>(&key, vault);
     e.storage()
         .persistent()
-        .extend_ttl(&reserve_id, LEDGER_THRESHOLD_USER, LEDGER_BUMP_USER);
+        .extend_ttl(&key, LEDGER_THRESHOLD_USER, LEDGER_BUMP_USER);
 }
 
-/// Get a reserve's data
-pub fn get_reserve_data(e: &Env, reserve_id: u32) -> Option<ReserveData> {
+/// Get a reserve's vault data
+///
+/// ### Arguments
+/// * `reserve` - The address of the reserve asset
+pub fn get_reserve_vault(e: &Env, reserve: &Address) -> ReserveVault {
+    let key = FeeVaultDataKey::ResVault(reserve.clone());
     let result = e
         .storage()
         .persistent()
-        .get::<u32, ReserveData>(&reserve_id);
-    if result.is_some() {
-        e.storage()
-            .persistent()
-            .extend_ttl(&reserve_id, LEDGER_THRESHOLD_USER, LEDGER_BUMP_USER);
-    }
-    result
-}
-
-/// Get a user's deposits
-/// deposit amount stored in shares, 7 decimal places of precision
-pub fn get_user_deposits(e: &Env, user: &Address) -> Map<u32, i128> {
-    let result = e
-        .storage()
-        .persistent()
-        .get::<Address, Map<u32, i128>>(&user);
-    if let Some(user_data) = result {
-        e.storage()
-            .persistent()
-            .extend_ttl(user, LEDGER_THRESHOLD_USER, LEDGER_BUMP_USER);
-        user_data
-    } else {
-        Map::new(e)
+        .get::<FeeVaultDataKey, ReserveVault>(&key);
+    match result {
+        Some(reserve_data) => {
+            e.storage()
+                .persistent()
+                .extend_ttl(&key, LEDGER_THRESHOLD_USER, LEDGER_BUMP_USER);
+            reserve_data
+        }
+        None => panic_with_error!(e, FeeVaultError::ReserveNotFound),
     }
 }
 
-/// Set a user's deposits
-/// deposit amount stored in shares, 7 decimal places of precision
-pub fn set_user_deposits(e: &Env, user: &Address, data: Map<u32, i128>) {
+/// Check if a reserve has a vault
+///
+/// ### Arguments
+/// * `reserve` - The address of the reserve asset
+pub fn has_reserve_vault(e: &Env, reserve: &Address) -> bool {
+    let key = FeeVaultDataKey::ResVault(reserve.clone());
+    e.storage().persistent().has(&key)
+}
+
+/// Get the number of vault shares a user owns. Shares are stored with 7 decimal places of precision.
+///
+/// ### Arguments
+/// * `reserve` - The address of the reserve asset
+/// * `user` - The address of the user
+pub fn get_reserve_vault_shares(e: &Env, reserve: &Address, user: &Address) -> i128 {
+    let key = FeeVaultDataKey::Deposit(DepositKey {
+        reserve: reserve.clone(),
+        user: user.clone(),
+    });
+    let result = e.storage().persistent().get::<FeeVaultDataKey, i128>(&key);
+    match result {
+        Some(shares) => {
+            e.storage()
+                .persistent()
+                .extend_ttl(&key, LEDGER_THRESHOLD_USER, LEDGER_BUMP_USER);
+            shares
+        }
+        None => 0,
+    }
+}
+
+/// Set the number of vault shares a user owns. Shares are stored with 7 decimal places of precision.
+///
+/// ### Arguments
+/// * `reserve` - The address of the reserve asset
+/// * `user` - The address of the user
+/// * `shares` - The number of shares the user owns
+pub fn set_reserve_vault_shares(e: &Env, reserve: &Address, user: &Address, shares: i128) {
+    let key = FeeVaultDataKey::Deposit(DepositKey {
+        reserve: reserve.clone(),
+        user: user.clone(),
+    });
     e.storage()
         .persistent()
-        .set::<Address, Map<u32, i128>>(user, &data);
+        .set::<FeeVaultDataKey, i128>(&key, &shares);
     e.storage()
         .persistent()
-        .extend_ttl(user, LEDGER_THRESHOLD_USER, LEDGER_BUMP_USER);
+        .extend_ttl(&key, LEDGER_THRESHOLD_USER, LEDGER_BUMP_USER);
 }

@@ -412,10 +412,11 @@ checksum = "b90ca2580b73ab6a1f724b76ca11ab632df820fd6040c336200d2c1df7b3c82c"
 
 [[package]]
 name = "fee-vault"
-version = "1.1.0"
+version = "1.0.0"
 dependencies = [
  "blend-contract-sdk",
  "sep-40-oracle",
+ "sep-41-token",
  "soroban-fixed-point-math",
  "soroban-sdk",
 ]
@@ -866,6 +867,15 @@ name = "sep-40-oracle"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "841b6a0722971d450567c6cba4b8e00fc00a8774e3cac6f4df4ce16491a7fb93"
+dependencies = [
+ "soroban-sdk",
+]
+
+[[package]]
+name = "sep-41-token"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a0512f9829db34a9a9076e95c8137bbf88276915ec568d91e37350046fc3168c"
 dependencies = [
  "soroban-sdk",
 ]
