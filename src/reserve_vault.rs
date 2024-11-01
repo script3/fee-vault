@@ -779,7 +779,6 @@ mod tests {
         e.mock_all_auths();
 
         let vault_address = register_fee_vault(&e);
-        let samwise = Address::generate(&e);
         let reserve = Address::generate(&e);
 
         e.as_contract(&vault_address, || {

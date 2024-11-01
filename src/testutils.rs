@@ -1,19 +1,16 @@
 #![cfg(test)]
 
-use core::ops::Add;
-
 use crate::{
     constants::SCALAR_7,
-    dependencies::pool::{Client as PoolClient, Request, ReserveConfig, ReserveEmissionMetadata},
     storage::ONE_DAY_LEDGERS,
     FeeVault, FeeVaultClient,
 };
 use blend_contract_sdk::testutils::BlendFixture;
+use blend_contract_sdk::pool::{Client as PoolClient, Request, ReserveConfig, ReserveEmissionMetadata};
 use sep_41_token::testutils::MockTokenClient;
 use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::{
     testutils::{Address as _, BytesN as _, Ledger as _, LedgerInfo},
-    token::StellarAssetClient,
     vec, Address, BytesN, Env, String, Symbol,
 };
 
@@ -152,6 +149,9 @@ pub trait EnvTestUtils {
     /// Jump the env by the given amount of ledgers. Assumes 5 seconds per ledger.
     fn jump(&self, ledgers: u32);
 
+    /// Jump the env by the given amount of seconds. Incremends the sequence by 1.
+    fn jump_time(&self, seconds: u64);
+
     /// Set the ledger to the default LedgerInfo
     ///
     /// Time -> 1441065600 (Sept 1st, 2015 12:00:00 AM UTC)
@@ -165,6 +165,19 @@ impl EnvTestUtils for Env {
             timestamp: self.ledger().timestamp().saturating_add(ledgers as u64 * 5),
             protocol_version: 20,
             sequence_number: self.ledger().sequence().saturating_add(ledgers),
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 30 * ONE_DAY_LEDGERS,
+            min_persistent_entry_ttl: 30 * ONE_DAY_LEDGERS,
+            max_entry_ttl: 365 * ONE_DAY_LEDGERS,
+        });
+    }
+
+    fn jump_time(&self, seconds: u64) {
+        self.ledger().set(LedgerInfo {
+            timestamp: self.ledger().timestamp().saturating_add(seconds),
+            protocol_version: 20,
+            sequence_number: self.ledger().sequence().saturating_add(1),
             network_id: Default::default(),
             base_reserve: 10,
             min_temp_entry_ttl: 30 * ONE_DAY_LEDGERS,

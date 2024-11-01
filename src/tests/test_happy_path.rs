@@ -1,11 +1,11 @@
 #![cfg(test)]
 
-use crate::constants::SCALAR_7;
-use crate::dependencies::pool::{Client as PoolClient, Request};
+use crate::constants::{MIN_DUST, SCALAR_7};
 use crate::storage::ONE_DAY_LEDGERS;
 use crate::testutils::{create_blend_pool, create_fee_vault, EnvTestUtils};
 use crate::FeeVaultClient;
 use blend_contract_sdk::testutils::BlendFixture;
+use blend_contract_sdk::pool::{Client as PoolClient, Request};
 use sep_41_token::testutils::MockTokenClient;
 use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::testutils::{Address as _, AuthorizedFunction, AuthorizedInvocation};
@@ -287,11 +287,11 @@ fn test_happy_path() {
     assert_eq!(fee_vault_client.get_shares(&usdc, &samwise), 0);
 
     // -> verify withdraw from uninitialized vault fails
-    let result = fee_vault_client.try_withdraw(&xlm, &samwise, &1);
+    let result = fee_vault_client.try_withdraw(&xlm, &samwise, &MIN_DUST);
     assert_eq!(result.err(), Some(Ok(Error::from_contract_error(100))));
 
     // -> verify withdraw from empty vault fails
-    let result = fee_vault_client.try_withdraw(&usdc, &samwise, &1);
+    let result = fee_vault_client.try_withdraw(&usdc, &samwise, &MIN_DUST);
     assert_eq!(result.err(), Some(Ok(Error::from_contract_error(105))));
 
     /*

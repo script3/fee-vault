@@ -1,10 +1,10 @@
 use crate::{
-    dependencies::pool::{Client as PoolClient, Request},
     errors::FeeVaultError,
     reserve_vault::ReserveVault,
     storage,
 };
 use soroban_sdk::{panic_with_error, token::TokenClient, vec, Address, Env, Vec};
+use blend_contract_sdk::pool::{Client as PoolClient, Request};
 
 /// Executes a supply of a specific reserve into the underlying pool on behalf of the fee vault
 ///

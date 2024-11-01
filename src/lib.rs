@@ -7,7 +7,6 @@ pub mod testutils;
 
 pub mod constants;
 pub mod contract;
-pub mod dependencies;
 pub mod errors;
 pub mod events;
 pub mod pool;

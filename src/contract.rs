@@ -1,4 +1,5 @@
 use crate::{
+    constants::MIN_DUST,
     errors::FeeVaultError,
     events::FeeVaultEvents,
     pool,
@@ -186,9 +187,15 @@ impl FeeVault {
     ///
     /// ### Panics
     /// * `InsufficientAccruedFees` - If more b_tokens are withdrawn than accrued via fees
+    /// * `InvalidAmount` - If the amount is less than the minimum dust amount (10000)
     pub fn claim_fees(e: Env, reserve: Address, to: Address, amount: i128) -> i128 {
         let admin = storage::get_admin(&e);
         admin.require_auth();
+        // protect against rouding of reserve_vault::update_rate, as small amounts
+        // can cause incorrect b_rate calculations due to the pool rounding
+        if amount < MIN_DUST {
+            panic_with_error!(&e, FeeVaultError::InvalidAmount);
+        }
         let vault = storage::get_reserve_vault(&e, &reserve);
         let (tokens_withdrawn, b_tokens_burnt) = pool::withdraw(&e, &vault, &to, amount);
         reserve_vault::claim_fees(&e, vault, tokens_withdrawn, b_tokens_burnt);
@@ -207,8 +214,17 @@ impl FeeVault {
     ///
     /// ### Returns
     /// * `i128` - The number of shares minted for the user
+    ///
+    /// ### Panics
+    /// * `InvalidAmount` - If the amount is less than the minimum dust amount (10000)
+    /// * `ReserveNotFound` - If the reserve does not have a vault
     pub fn deposit(e: Env, reserve: Address, user: Address, amount: i128) -> i128 {
         user.require_auth();
+        // protect against rouding of reserve_vault::update_rate, as small amounts
+        // can cause incorrect b_rate calculations due to the pool rounding
+        if amount < MIN_DUST {
+            panic_with_error!(&e, FeeVaultError::InvalidAmount);
+        }
         let vault = storage::get_reserve_vault(&e, &reserve);
         let b_tokens_minted = pool::supply(&e, &vault, &user, amount);
         let new_shares = reserve_vault::deposit(&e, vault, &user, amount, b_tokens_minted);
@@ -225,8 +241,18 @@ impl FeeVault {
     ///
     /// ### Returns
     /// * `i128` - The number of shares burnt
+    ///
+    /// ### Panics
+    /// * `InvalidAmount` - If the amount is less than the minimum dust amount (10000)
+    /// * `BalanceError` - If the user does not have enough shares to withdraw the amount
+    /// * `ReserveNotFound` - If the reserve does not have a vault
     pub fn withdraw(e: Env, reserve: Address, user: Address, amount: i128) -> i128 {
         user.require_auth();
+        // protect against rouding of reserve_vault::update_rate, as small amounts
+        // can cause incorrect b_rate calculations due to the pool rounding
+        if amount < MIN_DUST {
+            panic_with_error!(&e, FeeVaultError::InvalidAmount);
+        }
         let vault = storage::get_reserve_vault(&e, &reserve);
         let (tokens_withdrawn, b_tokens_burnt) = pool::withdraw(&e, &vault, &user, amount);
         let burnt_shares =
