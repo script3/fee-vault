@@ -1,13 +1,15 @@
 #![cfg(test)]
 
-use crate::dependencies::pool::{Client as PoolClient, Request};
+use crate::constants::{MIN_DUST, SCALAR_7};
 use crate::storage::ONE_DAY_LEDGERS;
-use crate::testutils::{assert_approx_eq_abs, create_fee_vault, EnvTestUtils};
+use crate::testutils::{create_blend_pool, create_fee_vault, EnvTestUtils};
 use crate::FeeVaultClient;
 use blend_contract_sdk::testutils::BlendFixture;
-use soroban_sdk::testutils::Address as _;
-use soroban_sdk::token::{StellarAssetClient, TokenClient};
-use soroban_sdk::{vec, Address, Env};
+use blend_contract_sdk::pool::{Client as PoolClient, Request};
+use sep_41_token::testutils::MockTokenClient;
+use soroban_fixed_point_math::FixedPoint;
+use soroban_sdk::testutils::{Address as _, AuthorizedFunction, AuthorizedInvocation};
+use soroban_sdk::{vec, Address, Env, Error, IntoVal, Symbol};
 
 #[test]
 fn test_happy_path() {
@@ -17,98 +19,165 @@ fn test_happy_path() {
     e.set_default_info();
 
     let bombadil = Address::generate(&e);
+    let gandalf = Address::generate(&e);
     let frodo = Address::generate(&e);
+    let samwise = Address::generate(&e);
+    let merry = Address::generate(&e);
 
     let blnd = e.register_stellar_asset_contract(bombadil.clone());
     let usdc = e.register_stellar_asset_contract(bombadil.clone());
     let xlm = e.register_stellar_asset_contract(bombadil.clone());
-    let usdc_client = StellarAssetClient::new(&e, &usdc);
-    let usdc_token = TokenClient::new(&e, &usdc);
-    let xlm_client = StellarAssetClient::new(&e, &xlm);
-    let xlm_token = TokenClient::new(&e, &xlm);
+    let blnd_client = MockTokenClient::new(&e, &blnd);
+    let usdc_client = MockTokenClient::new(&e, &usdc);
+    let xlm_client = MockTokenClient::new(&e, &xlm);
+
     let blend_fixture = BlendFixture::deploy(&e, &bombadil, &blnd, &usdc);
-    let blnd_token = TokenClient::new(&e, &blnd);
-    let fee_vault = create_fee_vault(
-        &e,
-        &blend_fixture,
-        bombadil.clone(),
-        &usdc_client,
-        &xlm_client,
-    );
+
+    // usdc (0) and xlm (1) charge a fixed 10% borrow rate with 0% backstop take rate
+    // admin deposits 200m tokens and borrows 100m tokens for a 50% util rate
+    // emits to each reserve token evently, and starts emissions
+    let pool = create_blend_pool(&e, &blend_fixture, &bombadil, &usdc_client, &xlm_client);
+    let pool_client = PoolClient::new(&e, &pool);
+    let fee_vault = create_fee_vault(&e, &bombadil, &pool);
     let fee_vault_client = FeeVaultClient::new(&e, &fee_vault);
-    let pool_address = fee_vault_client.get_pool();
-    let pool_client = PoolClient::new(&e, &pool_address);
-    // mint frodo usdc
-    usdc_client.mint(&frodo, &100_0000_0000000);
-    // mint frodo xlm
-    xlm_client.mint(&frodo, &100_0000_0000000);
-    // deposit usdc in fee vault
-    let b_tokens_received =
-        fee_vault_client
-            .mock_all_auths()
-            .deposit(&frodo, &1_000_000_000_0000, &0);
-    let shares_received = fee_vault_client
-        .get_deposits_in_underlying(&vec![&e, 0], &frodo)
-        .get(usdc.clone())
-        .unwrap();
-    assert_eq!(shares_received, b_tokens_received);
-    let vault_balance = pool_client
-        .get_positions(&fee_vault)
-        .supply
-        .get_unchecked(0);
-    assert_eq!(vault_balance, b_tokens_received);
-    // withdraw some usdc from fee vault
-    let pre_withdrawal_balance = usdc_token.balance(&frodo);
-    let pre_vault_balance = pool_client
-        .get_positions(&fee_vault)
-        .supply
-        .get_unchecked(0);
-    let withdrawn_amount = fee_vault_client.withdraw(&frodo, &0, &50_0000_0000000);
-    let post_withdrawal_balance = usdc_token.balance(&frodo);
-    let post_vault_balance = pool_client
-        .get_positions(&fee_vault)
-        .supply
-        .get_unchecked(0);
+
+    fee_vault_client.add_reserve_vault(&0, &usdc);
+    // -> verify add reserve vault auth
     assert_eq!(
-        post_withdrawal_balance,
-        pre_withdrawal_balance + withdrawn_amount
-    );
-    assert_eq!(post_vault_balance, pre_vault_balance / 2);
-    let vault_balance = pool_client
-        .get_positions(&fee_vault)
-        .supply
-        .get_unchecked(0);
-    assert_eq!(vault_balance, b_tokens_received / 2);
-
-    let accrued_fees = fee_vault_client.get_reserve_data(&0).accrued_fees;
-    assert_eq!(accrued_fees, 0);
-
-    // fund merry
-    let merry = Address::generate(&e);
-    usdc_client.mint(&merry, &101_0000_0000000);
-    xlm_client.mint(&merry, &100_0000_0000000);
-
-    // let interest accrue
-    e.jump(ONE_DAY_LEDGERS * 10);
-
-    // check bRate
-    let b_tokens = pool_client
-        .submit(
-            &merry,
-            &merry,
-            &merry,
-            &vec![
-                &e,
-                Request {
-                    address: usdc.clone(),
-                    amount: 1_000_000_000,
-                    request_type: 0,
-                },
-            ],
+        e.auths()[0],
+        (
+            bombadil.clone(),
+            AuthorizedInvocation {
+                function: AuthorizedFunction::Contract((
+                    fee_vault.clone(),
+                    Symbol::new(&e, "add_reserve_vault"),
+                    vec![&e, 0_u32.into_val(&e), usdc.to_val(),]
+                )),
+                sub_invocations: std::vec![]
+            }
         )
-        .supply
-        .get_unchecked(0);
-    let b_rate = 1_000_000_000 * 1_000_000_000 / b_tokens;
+    );
+
+    fee_vault_client.set_admin(&gandalf);
+    // -> verify add reserve vault auth
+    assert_eq!(
+        e.auths()[0],
+        (
+            bombadil.clone(),
+            AuthorizedInvocation {
+                function: AuthorizedFunction::Contract((
+                    fee_vault.clone(),
+                    Symbol::new(&e, "set_admin"),
+                    vec![&e, gandalf.to_val(),]
+                )),
+                sub_invocations: std::vec![]
+            }
+        )
+    );
+    assert_eq!(
+        e.auths()[1],
+        (
+            gandalf.clone(),
+            AuthorizedInvocation {
+                function: AuthorizedFunction::Contract((
+                    fee_vault.clone(),
+                    Symbol::new(&e, "set_admin"),
+                    vec![&e, gandalf.to_val(),]
+                )),
+                sub_invocations: std::vec![]
+            }
+        )
+    );
+
+    fee_vault_client.set_take_rate(&0_1000000);
+
+    /*
+     * Deposit into pool
+     * -> deposit 100 into fee vault for each frodo and samwise
+     * -> deposit 200 into pool for merry
+     * -> bombadil borrow from pool to return to 50% util rate
+     * -> verify a deposit into an uninitialized vault fails
+     */
+    let pool_usdc_balace_start = usdc_client.balance(&pool);
+    let starting_balance = 100_0000000;
+    usdc_client.mint(&frodo, &starting_balance);
+    usdc_client.mint(&samwise, &starting_balance);
+
+    fee_vault_client.deposit(&usdc, &frodo, &starting_balance);
+    // -> verify deposit auth
+    let deposit_request = vec![
+        &e,
+        Request {
+            request_type: 0,
+            address: usdc.clone(),
+            amount: starting_balance.clone(),
+        },
+    ];
+    assert_eq!(
+        e.auths()[0],
+        (
+            frodo.clone(),
+            AuthorizedInvocation {
+                function: AuthorizedFunction::Contract((
+                    fee_vault.clone(),
+                    Symbol::new(&e, "deposit"),
+                    vec![
+                        &e,
+                        usdc.to_val(),
+                        frodo.to_val(),
+                        starting_balance.into_val(&e),
+                    ]
+                )),
+                sub_invocations: std::vec![AuthorizedInvocation {
+                    function: AuthorizedFunction::Contract((
+                        pool.clone(),
+                        Symbol::new(&e, "submit"),
+                        vec![
+                            &e,
+                            fee_vault.to_val(),
+                            frodo.to_val(),
+                            frodo.to_val(),
+                            deposit_request.to_val(),
+                        ]
+                    )),
+                    sub_invocations: std::vec![AuthorizedInvocation {
+                        function: AuthorizedFunction::Contract((
+                            usdc.clone(),
+                            Symbol::new(&e, "transfer"),
+                            vec![
+                                &e,
+                                frodo.to_val(),
+                                pool.to_val(),
+                                starting_balance.into_val(&e)
+                            ]
+                        )),
+                        sub_invocations: std::vec![]
+                    }]
+                }]
+            }
+        )
+    );
+
+    fee_vault_client.deposit(&usdc, &samwise, &starting_balance);
+
+    // verify deposit (pool b_rate still 1 as no time has passed)
+    assert_eq!(usdc_client.balance(&frodo), 0);
+    assert_eq!(usdc_client.balance(&samwise), 0);
+    assert_eq!(fee_vault_client.get_shares(&usdc, &frodo), starting_balance);
+    assert_eq!(
+        fee_vault_client.get_shares(&usdc, &samwise),
+        starting_balance
+    );
+    assert_eq!(
+        usdc_client.balance(&pool),
+        pool_usdc_balace_start + starting_balance * 2
+    );
+    let vault_positions = pool_client.get_positions(&fee_vault);
+    assert_eq!(vault_positions.supply.get(0).unwrap(), starting_balance * 2);
+
+    // merry deposit directly into pool
+    let merry_starting_balance = 200_0000000;
+    usdc_client.mint(&merry, &merry_starting_balance);
     pool_client.submit(
         &merry,
         &merry,
@@ -116,222 +185,181 @@ fn test_happy_path() {
         &vec![
             &e,
             Request {
+                request_type: 0,
                 address: usdc.clone(),
-                amount: 1_000_000_000,
-                request_type: 1,
+                amount: merry_starting_balance,
             },
         ],
     );
 
-    // merry deposits 100_000e7
-    let pre_vault_b_tokens = pool_client.get_positions(&fee_vault).supply.get(0).unwrap();
-    let pre_merry_balance = usdc_token.balance(&merry);
-    let b_tokens_received = fee_vault_client.deposit(&merry, &100_0000_0000000, &0);
-    let post_merry_balance = usdc_token.balance(&merry);
-    assert_eq!(post_merry_balance, pre_merry_balance - 100_0000_0000000);
-    let post_vault_b_tokens = pool_client.get_positions(&fee_vault).supply.get(0).unwrap();
-
-    assert_eq!(pre_vault_b_tokens + b_tokens_received, post_vault_b_tokens);
-    let deposit_amount = fee_vault_client
-        .get_deposits_in_underlying(&vec![&e, 0], &merry)
-        .get(usdc.clone())
-        .unwrap();
-
-    let withdraw_amount = fee_vault_client.withdraw(&merry, &0, &99_9999_9999990);
-    let post_withdraw_deposit_amount = fee_vault_client
-        .get_deposits_in_underlying(&vec![&e, 0], &merry)
-        .get(usdc.clone())
-        .unwrap();
-    assert_eq!(post_withdraw_deposit_amount, 0);
-    assert_eq!(withdraw_amount, 989_498_615_4500);
-    assert_eq!(usdc_token.balance(&merry), 100_0000_0000000 + 99999999989);
-    assert_eq!(deposit_amount, 999_999_999_9998);
-
-    let reserve_data = fee_vault_client.get_reserve_data(&0);
-    // check accrued fees
-    let accrued_fees = reserve_data.accrued_fees;
-    assert_approx_eq_abs(accrued_fees, 1050_1384549, 1000);
-    // check that b_tokens are not exceeded
-    let positions = pool_client.get_positions(&fee_vault);
-    assert!(
-        positions.supply.get(0).unwrap() >= reserve_data.total_b_tokens + reserve_data.accrued_fees
-    );
-    assert_eq!(
-        positions.supply.get(0).unwrap(),
-        reserve_data.total_b_tokens + reserve_data.accrued_fees
-    );
-    // check frodo deposit
-    let frodo_deposit_amount = fee_vault_client
-        .get_deposits_in_underlying(&vec![&e, 0], &frodo)
-        .get(usdc.clone())
-        .unwrap();
-    assert_approx_eq_abs(
-        frodo_deposit_amount,
-        (500_000_0000000 - 1050_1384549) * b_rate / 1_000_000_000,
-        10000,
-    );
-    blend_fixture.emitter.distribute();
-    blend_fixture.backstop.gulp_emissions();
-    pool_client.gulp_emissions();
-    // deposit xlm in fee vault
-    fee_vault_client.deposit(&frodo, &5000_0000000, &1);
-    e.jump(ONE_DAY_LEDGERS * 7);
-    blend_fixture.emitter.distribute();
-    blend_fixture.backstop.gulp_emissions();
-    pool_client.gulp_emissions();
-    fee_vault_client.withdraw(&frodo, &1, &5039_6041670);
-    let frodo_deposit = fee_vault_client
-        .get_deposits_in_underlying(&vec![&e, 1], &frodo)
-        .get(xlm.clone())
-        .unwrap();
-    assert_eq!(frodo_deposit, 0);
-
-    // check bRate
-    let b_tokens = pool_client
-        .submit(
-            &merry,
-            &merry,
-            &merry,
-            &vec![
-                &e,
-                Request {
-                    address: usdc.clone(),
-                    amount: 1_000_000_000,
-                    request_type: 0,
-                },
-            ],
-        )
-        .supply
-        .get_unchecked(0);
-    let usdc_b_rate = 1_000_000_000 * 1_000_000_000 / b_tokens;
-    let b_tokens = pool_client
-        .submit(
-            &merry,
-            &merry,
-            &merry,
-            &vec![
-                &e,
-                Request {
-                    address: xlm.clone(),
-                    amount: 1_000_000_000,
-                    request_type: 0,
-                },
-            ],
-        )
-        .supply
-        .get_unchecked(1);
-    let xlm_b_rate = 1_000_000_000 * 1_000_000_000 / b_tokens;
-    // try claim fees
-    let pre_claim_xlm_balance = xlm_token.balance(&bombadil);
-    let pre_claim_usdc_balance = usdc_token.balance(&bombadil);
-    let usdc_accrued_fees = fee_vault_client.get_reserve_data(&0).accrued_fees;
-    let xlm_accrued_fees = fee_vault_client.get_reserve_data(&1).accrued_fees;
-    fee_vault_client.claim_fees(&vec![
-        &e,
-        (0, usdc_accrued_fees * usdc_b_rate / 1_000_000_000),
-        (1, xlm_accrued_fees * xlm_b_rate / 1_000_000_000),
-    ]);
-    assert_eq!(fee_vault_client.get_reserve_data(&0).accrued_fees, 0);
-    assert_eq!(fee_vault_client.get_reserve_data(&1).accrued_fees, 0);
-    assert_eq!(
-        xlm_token.balance(&bombadil),
-        pre_claim_xlm_balance + xlm_accrued_fees * xlm_b_rate / 1_000_000_000
-    );
-    assert_eq!(
-        usdc_token.balance(&bombadil),
-        pre_claim_usdc_balance + usdc_accrued_fees * usdc_b_rate / 1_000_000_000
+    // bombadil borrow back to 50% util rate
+    let borrow_amount = (merry_starting_balance + starting_balance * 2) / 2;
+    pool_client.submit(
+        &bombadil,
+        &bombadil,
+        &bombadil,
+        &vec![
+            &e,
+            Request {
+                request_type: 4,
+                address: usdc.clone(),
+                amount: borrow_amount,
+            },
+        ],
     );
 
-    // test claim emissions
-    let pre_blnd_balance = blnd_token.balance(&bombadil);
-    let blnd_claimed = fee_vault_client.claim_emissions(&vec![&e, 1, 3]);
-    assert_eq!(
-        blnd_token.balance(&bombadil),
-        pre_blnd_balance + blnd_claimed
-    );
-}
+    // verify uninitialized vault deposit fails
+    xlm_client.mint(&samwise, &starting_balance);
+    let result = fee_vault_client.try_deposit(&xlm, &samwise, &starting_balance);
+    assert_eq!(result.err(), Some(Ok(Error::from_contract_error(100))));
 
-#[test]
-#[should_panic(expected = "Error(Contract, #103)")]
-fn test_fee_claim_fails() {
-    let e = Env::default();
-    e.budget().reset_unlimited();
-    e.mock_all_auths();
-    e.set_default_info();
-
-    let bombadil = Address::generate(&e);
-    let frodo = Address::generate(&e);
-
-    let blnd = e.register_stellar_asset_contract(bombadil.clone());
-    let usdc = e.register_stellar_asset_contract(bombadil.clone());
-    let xlm = e.register_stellar_asset_contract(bombadil.clone());
-    let usdc_client = StellarAssetClient::new(&e, &usdc);
-    let xlm_client = StellarAssetClient::new(&e, &xlm);
-    let blend_fixture = BlendFixture::deploy(&e, &bombadil, &blnd, &usdc);
-    let fee_vault = create_fee_vault(
-        &e,
-        &blend_fixture,
-        bombadil.clone(),
-        &usdc_client,
-        &xlm_client,
-    );
-    let fee_vault_client = FeeVaultClient::new(&e, &fee_vault);
-    let pool_address = fee_vault_client.get_pool();
-    let pool_client = PoolClient::new(&e, &pool_address);
-    // mint frodo usdc
-    usdc_client.mint(&frodo, &100_0000_0000000);
-    // mint frodo xlm
-    xlm_client.mint(&frodo, &100_0000_0000000);
-    // deposit usdc in fee vault
-
-    fee_vault_client
-        .mock_all_auths()
-        .deposit(&frodo, &1_000_000_0000, &0);
-    // deposit xlm in fee vault
-    fee_vault_client.deposit(&frodo, &5000_0000000, &1);
+    /*
+     * Allow 1 week to pass
+     */
     e.jump(ONE_DAY_LEDGERS * 7);
 
-    // check bRate
-    let b_tokens = pool_client
-        .submit(
-            &frodo,
-            &frodo,
-            &frodo,
-            &vec![
-                &e,
-                Request {
-                    address: usdc.clone(),
-                    amount: 1_000_000_000,
-                    request_type: 0,
-                },
-            ],
+    /*
+     * Withdraw from pool
+     * -> withdraw all funds from pool for merry
+     * -> withdraw (excluding dust) from fee vault for frodo and samwise
+     * -> verify a withdraw from an uninitialized vault fails
+     * -> verify a withdraw from an empty vault fails
+     * -> verify an over withdraw fails
+     */
+
+    // withdraw all funds from pool for merry
+    pool_client.submit(
+        &merry,
+        &merry,
+        &merry,
+        &vec![
+            &e,
+            Request {
+                request_type: 1,
+                address: usdc.clone(),
+                amount: merry_starting_balance * 2,
+            },
+        ],
+    );
+    let merry_final_balance = usdc_client.balance(&merry);
+    let merry_profit = merry_final_balance - merry_starting_balance;
+
+    // withdraw from fee vault for frodo and samwise
+    // they are expected to receive half of the profit of merry less the 10% vault fee
+    // mul ceil due to rounding down on "merry_profit / 2"
+    let expected_frodo_profit = (merry_profit / 2)
+        .fixed_mul_ceil(0_9000000, SCALAR_7)
+        .unwrap();
+    let withdraw_amount = starting_balance + expected_frodo_profit;
+
+    // -> verify over withdraw fails
+    let result = fee_vault_client.try_withdraw(&usdc, &samwise, &(withdraw_amount + 1));
+    assert_eq!(result.err(), Some(Ok(Error::from_contract_error(10))));
+
+    fee_vault_client.withdraw(&usdc, &frodo, &withdraw_amount);
+    // -> verify withdraw auth
+    assert_eq!(
+        e.auths()[0],
+        (
+            frodo.clone(),
+            AuthorizedInvocation {
+                function: AuthorizedFunction::Contract((
+                    fee_vault.clone(),
+                    Symbol::new(&e, "withdraw"),
+                    vec![
+                        &e,
+                        usdc.to_val(),
+                        frodo.to_val(),
+                        withdraw_amount.into_val(&e),
+                    ]
+                )),
+                sub_invocations: std::vec![]
+            }
         )
-        .supply
-        .get_unchecked(0);
-    let usdc_b_rate = 1_000_000_000 * 1_000_000_000 / b_tokens;
-    let b_tokens = pool_client
-        .submit(
-            &frodo,
-            &frodo,
-            &frodo,
-            &vec![
-                &e,
-                Request {
-                    address: xlm.clone(),
-                    amount: 1_000_000_000,
-                    request_type: 0,
-                },
-            ],
+    );
+
+    fee_vault_client.withdraw(&usdc, &samwise, &withdraw_amount);
+
+    // -> verify withdraw
+    assert_eq!(usdc_client.balance(&frodo), withdraw_amount);
+    assert_eq!(usdc_client.balance(&samwise), withdraw_amount);
+    assert_eq!(fee_vault_client.get_shares(&usdc, &frodo), 0);
+    assert_eq!(fee_vault_client.get_shares(&usdc, &samwise), 0);
+
+    // -> verify withdraw from uninitialized vault fails
+    let result = fee_vault_client.try_withdraw(&xlm, &samwise, &MIN_DUST);
+    assert_eq!(result.err(), Some(Ok(Error::from_contract_error(100))));
+
+    // -> verify withdraw from empty vault fails
+    let result = fee_vault_client.try_withdraw(&usdc, &samwise, &MIN_DUST);
+    assert_eq!(result.err(), Some(Ok(Error::from_contract_error(105))));
+
+    /*
+     * Admin claim fees and emissions
+     * -> admin claim fees for usdc
+     * -> claim emissions for the deposit
+     */
+
+    // claim fees for usdc. There is a rounding loss of 1 stroop.
+    let expected_fees = merry_profit.fixed_mul_floor(0_1000000, SCALAR_7).unwrap() - 1;
+    fee_vault_client.claim_fees(&usdc, &gandalf, &expected_fees);
+
+    // -> verify claim fees auth
+    assert_eq!(
+        e.auths()[0],
+        (
+            gandalf.clone(),
+            AuthorizedInvocation {
+                function: AuthorizedFunction::Contract((
+                    fee_vault.clone(),
+                    Symbol::new(&e, "claim_fees"),
+                    vec![
+                        &e,
+                        usdc.to_val(),
+                        gandalf.to_val(),
+                        expected_fees.into_val(&e),
+                    ]
+                )),
+                sub_invocations: std::vec![]
+            }
         )
-        .supply
-        .get_unchecked(1);
-    let xlm_b_rate = 1_000_000_000 * 1_000_000_000 / b_tokens;
-    // try claim fees
-    let usdc_accrued_fees = fee_vault_client.get_reserve_data(&0).accrued_fees;
-    let xlm_accrued_fees = fee_vault_client.get_reserve_data(&1).accrued_fees;
-    fee_vault_client.claim_fees(&vec![
-        &e,
-        (0, usdc_accrued_fees * usdc_b_rate / 1_000_000_000 + 100),
-        (1, xlm_accrued_fees * xlm_b_rate / 1_000_000_000 + 100),
-    ]);
+    );
+
+    // -> verify claim fees
+    assert_eq!(usdc_client.balance(&gandalf), expected_fees);
+    // -> verify vault position is empty and fully unwound
+    assert!(pool_client.get_positions(&fee_vault).supply.is_empty());
+    // -> verify internal vault tracking is empty
+    let reserve_vault = fee_vault_client.get_reserve_vault(&usdc);
+    assert_eq!(reserve_vault.total_b_tokens, 0);
+    assert_eq!(reserve_vault.total_shares, 0);
+    assert_eq!(reserve_vault.accrued_fees, 0);
+
+    // claim emissions for merry
+    let reserve_token_ids = vec![&e, 1];
+    pool_client.claim(&merry, &reserve_token_ids, &merry);
+    let merry_emissions = blnd_client.balance(&merry);
+
+    // admin claim emissions
+    let claim_result = fee_vault_client.claim_emissions(&reserve_token_ids, &gandalf);
+
+    // -> verify claim emissions auth
+    assert_eq!(
+        e.auths()[0],
+        (
+            gandalf.clone(),
+            AuthorizedInvocation {
+                function: AuthorizedFunction::Contract((
+                    fee_vault.clone(),
+                    Symbol::new(&e, "claim_emissions"),
+                    vec![&e, reserve_token_ids.to_val(), gandalf.to_val(),]
+                )),
+                sub_invocations: std::vec![]
+            }
+        )
+    );
+
+    // -> verify claim emissions
+    assert_eq!(blnd_client.balance(&gandalf), claim_result);
+    assert_eq!(merry_emissions, claim_result);
 }

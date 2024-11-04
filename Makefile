@@ -8,8 +8,8 @@ build:
 
 	mkdir -p target/wasm32-unknown-unknown/optimized
 	soroban contract optimize \
-		--wasm target/wasm32-unknown-unknown/release/backstop_bootstrapper.wasm \
-		--wasm-out target/wasm32-unknown-unknown/optimized/backstop_bootstrapper.wasm
+		--wasm target/wasm32-unknown-unknown/release/fee_vault.wasm \
+		--wasm-out target/wasm32-unknown-unknown/optimized/fee_vault.wasm
 	cd target/wasm32-unknown-unknown/optimized/ && \
 		for i in *.wasm ; do \
 			ls -l "$$i"; \
