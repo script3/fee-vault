@@ -75,6 +75,7 @@ impl ReserveVault {
 
         let new_rate = pool::reserve_b_rate(e, &self.address);
         if new_rate == self.b_rate {
+            self.last_update_timestamp = now;
             return;
         }
 
@@ -98,7 +99,7 @@ impl ReserveVault {
                 0
             } else {
                 self.total_b_tokens
-                    .fixed_mul_ceil(new_rate - target_b_rate, new_rate)
+                    .fixed_mul_floor(new_rate - target_b_rate, new_rate)
                     .unwrap()
             }
         } else {
@@ -1033,7 +1034,8 @@ mod take_rate_tests {
             assert_eq!(reserve_vault.total_shares, reserve_vault.total_shares);
             assert_eq!(reserve_vault.total_b_tokens, reserve_vault.total_b_tokens);
             assert_eq!(reserve_vault.b_rate, reserve_vault.b_rate);
-            assert_eq!(reserve_vault.last_update_timestamp, now);
+            // Assert the timestamp still gets updated
+            assert_eq!(reserve_vault.last_update_timestamp, e.ledger().timestamp());
         });
     }
 }
@@ -1091,7 +1093,7 @@ mod apr_capped_tests {
             update_b_rate_and_time(&e, mock_client, new_b_rate, (SECONDS_PER_YEAR as u64) / 4);
 
             reserve_vault.update_rate(&e);
-            let expected_fees = 357142858;
+            let expected_fees = 357142857;
 
             // We'd expect user's underlying value to have increased by approx. (5/4)%, as the cap is reached
             let underlying_value_after =
@@ -1238,7 +1240,8 @@ mod apr_capped_tests {
             assert_eq!(reserve_vault.total_shares, reserve_vault.total_shares);
             assert_eq!(reserve_vault.total_b_tokens, reserve_vault.total_b_tokens);
             assert_eq!(reserve_vault.b_rate, reserve_vault.b_rate);
-            assert_eq!(reserve_vault.last_update_timestamp, now);
+            // assert the timestamp still gets updated
+            assert_eq!(reserve_vault.last_update_timestamp, e.ledger().timestamp());
         });
     }
 }
