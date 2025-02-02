@@ -217,8 +217,11 @@ impl FeeVault {
     /// * `i128` - The amount of blnd tokens claimed
     pub fn claim_emissions(e: Env, reserve_token_ids: Vec<u32>, to: Address) -> i128 {
         storage::extend_instance(&e);
-        storage::get_admin(&e).require_auth();
-        pool::claim(&e, &reserve_token_ids, &to)
+        let admin = storage::get_admin(&e);
+        admin.require_auth();
+        let emissions = pool::claim(&e, &reserve_token_ids, &to);
+        FeeVaultEvents::vault_emissions_claim(&e, &admin, reserve_token_ids, emissions);
+        emissions
     }
 
     /// ADMIN ONLY
