@@ -1,9 +1,13 @@
 #![cfg(test)]
 
 use crate::{
+    constants::SCALAR_12,
     reserve_vault::ReserveVault,
     storage,
-    testutils::{create_blend_pool, create_fee_vault, mockpool, register_fee_vault, EnvTestUtils},
+    testutils::{
+        assert_approx_eq_rel, create_blend_pool, create_fee_vault, mockpool, register_fee_vault,
+        EnvTestUtils,
+    },
     FeeVaultClient,
 };
 use blend_contract_sdk::testutils::BlendFixture;
@@ -53,6 +57,9 @@ fn test_constructor_ok() {
             }
         )
     );
+
+    let client = FeeVaultClient::new(&e, &vault_address);
+    assert_eq!(client.get_pool(), blend_pool);
 
     e.as_contract(&vault_address, || {
         assert_eq!(storage::get_admin(&e), samwise);
@@ -125,7 +132,7 @@ fn test_get_b_tokens() {
     let samwise = Address::generate(&e);
     let frodo = Address::generate(&e);
     let reserve = Address::generate(&e);
-    let init_b_rate = 1_000_000_000;
+    let init_b_rate = 1_000_000_000_000;
 
     let mock_client = mockpool::register_mock_pool_with_b_rate(&e, init_b_rate);
     let vault_address = register_fee_vault(
@@ -159,7 +166,7 @@ fn test_get_b_tokens() {
     assert_eq!(vault_client.get_b_tokens(&reserve, &frodo), 900_0000000);
 
     // b_rate is increased by 10%. `take_rate` is 10%
-    mock_client.set_b_rate(&1_100_000_000);
+    mock_client.set_b_rate(&1_100_000_000_000);
     // Jump some seconds forward to make sure the update_rate doesn't return early
     e.jump_time(10);
     let expected_accrued_fees = 90909090_i128;
@@ -181,7 +188,7 @@ fn test_get_b_tokens() {
         assert_eq!(reserve_vault.accrued_fees, 0);
         assert_eq!(reserve_vault.total_b_tokens, 1000_0000000);
         assert_eq!(reserve_vault.total_shares, 1200_0000000);
-        assert_eq!(reserve_vault.b_rate, 1_000_000_000);
+        assert_eq!(reserve_vault.b_rate, 1_000_000_000_000);
     });
 
     // Should return 0 if vault doesn't exist or user doesn't have any shares
@@ -196,6 +203,108 @@ fn test_get_b_tokens() {
         vault_client.get_b_tokens(&non_existent_reserve, &non_existent_user),
         0
     );
+}
+
+#[test]
+fn test_underlying_wrappers() {
+    let e = Env::default();
+    e.mock_all_auths();
+    e.set_default_info();
+
+    let samwise = Address::generate(&e);
+    let frodo = Address::generate(&e);
+    let reserve = Address::generate(&e);
+    let init_b_rate = 1_000_000_000_000;
+
+    let mock_client = mockpool::register_mock_pool_with_b_rate(&e, init_b_rate);
+    let vault_address = register_fee_vault(
+        &e,
+        Some((
+            samwise.clone(),
+            mock_client.address.clone(),
+            false,
+            0_1000000,
+        )),
+    );
+
+    let vault_client = FeeVaultClient::new(&e, &vault_address);
+
+    e.as_contract(&vault_address, || {
+        let reserve_vault = ReserveVault {
+            address: reserve.clone(),
+            total_b_tokens: 1000_0000000,
+            total_shares: 1200_0000000,
+            b_rate: init_b_rate,
+            last_update_timestamp: e.ledger().timestamp(),
+            accrued_fees: 0,
+        };
+        storage::set_reserve_vault(&e, &reserve, &reserve_vault);
+        // samwise owns 10% of the pool, frodo owns 90%
+        storage::set_reserve_vault_shares(&e, &reserve, &samwise, 120_0000000);
+        storage::set_reserve_vault_shares(&e, &reserve, &frodo, 1080_0000000);
+    });
+
+    let total_underlying_value = init_b_rate * 1000_0000000 / SCALAR_12;
+    let frodo_underlying = vault_client.get_underlying_tokens(&reserve, &frodo);
+    let samwise_underlying = vault_client.get_underlying_tokens(&reserve, &samwise);
+
+    // Since frodo owns 90% of the pool and sam owns 10%, we expect that
+    // frodo's underlying value will be 9x sam's, and their sum will be the total.
+    assert_eq!(
+        frodo_underlying + samwise_underlying,
+        total_underlying_value
+    );
+    assert_eq!(frodo_underlying, 9 * samwise_underlying);
+
+    // There are no accrued fees initially
+    assert_eq!(vault_client.get_collected_fees(&reserve), 0);
+
+    // Assume b_rate is increased by 10%. The wrappers should take that into account
+    mockpool::set_b_rate(&e, &mock_client, 1_100_000_000_000);
+
+    // Since the growth is 10%, and the take_rate is also 10%,
+    // the total accrued fees value should be `initial underlying / 100`.
+    let accrued_fees_underlying = vault_client.get_collected_fees(&reserve);
+    assert_approx_eq_rel(
+        accrued_fees_underlying,
+        total_underlying_value / 100,
+        0_0000001,
+    );
+
+    let sam_underlying_after = vault_client.get_underlying_tokens(&reserve, &samwise);
+    let frodo_underlying_after = vault_client.get_underlying_tokens(&reserve, &frodo);
+
+    // The new total underlying sum should be increased by 10%
+    assert_approx_eq_rel(
+        frodo_underlying_after + sam_underlying_after + accrued_fees_underlying,
+        110 * total_underlying_value / 100,
+        0_0000001,
+    );
+
+    // Both Frodo's and Sam's underlying value should've been increased by 9%
+    assert_eq!(frodo_underlying_after, 109 * frodo_underlying / 100);
+    assert_eq!(sam_underlying_after, 109 * samwise_underlying / 100);
+    // Frodo's total underlying should still be 9x sam's
+    assert_eq!(frodo_underlying_after, 9 * sam_underlying_after);
+
+    // Ensure the view function never panic
+    // `get_underlying_tokens` should return 0 if the reserve or the user don't exist.
+    let non_existent_user = Address::generate(&e);
+    let non_existent_reserve = Address::generate(&e);
+    assert_eq!(
+        vault_client.get_underlying_tokens(&non_existent_reserve, &frodo),
+        0
+    );
+    assert_eq!(
+        vault_client.get_underlying_tokens(&reserve, &non_existent_user),
+        0
+    );
+    assert_eq!(
+        vault_client.get_underlying_tokens(&non_existent_reserve, &non_existent_user),
+        0
+    );
+    // get_collected_fees should return 0 if the reserve doesn't exist
+    assert_eq!(vault_client.get_collected_fees(&non_existent_reserve), 0);
 }
 
 #[test]
@@ -335,7 +444,7 @@ fn test_add_reserve_vault() {
     let samwise = Address::generate(&e);
     let reserve = Address::generate(&e);
 
-    let mock_client = mockpool::register_mock_pool_with_b_rate(&e, 1_100_000_000);
+    let mock_client = mockpool::register_mock_pool_with_b_rate(&e, 1_100_000_000_000);
     let vault_address = register_fee_vault(
         &e,
         Some((
@@ -376,7 +485,7 @@ fn test_add_reserve_vault() {
     assert_eq!(reserve_info.total_b_tokens, 0);
     assert_eq!(reserve_info.total_shares, 0);
     // The init b_rate of the pool at the time of registering the vault was 1.1
-    assert_eq!(reserve_info.b_rate, 1_100_000_000);
+    assert_eq!(reserve_info.b_rate, 1_100_000_000_000);
     assert_eq!(reserve_info.accrued_fees, 0);
 
     // Trying to add a vault for the same reserve should fail
