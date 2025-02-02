@@ -291,6 +291,124 @@ mod tests {
     }
 
     #[test]
+    fn test_update_rate() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let init_b_rate = 1_100_000_000;
+        let bombadil = Address::generate(&e);
+
+        let mock_client = mockpool::register_mock_pool_with_b_rate(&e, init_b_rate);
+        let vault_address = register_fee_vault(
+            &e,
+            Some((bombadil.clone(), mock_client.address.clone(), 200_0000)),
+        );
+
+        e.as_contract(&vault_address, || {
+            let mut reserve_vault = ReserveVault {
+                address: Address::generate(&e),
+                total_b_tokens: 1000_0000000,
+                total_shares: 1200_0000000,
+                b_rate: init_b_rate,
+                accrued_fees: 0,
+            };
+
+            // update b_rate to 1.2
+            let expected_accrued_fee = 16_6666666;
+            mock_client.set_b_rate(&120_000_0000);
+            reserve_vault.update_rate(&e);
+
+            assert_eq!(reserve_vault.accrued_fees, expected_accrued_fee);
+            assert_eq!(reserve_vault.total_shares, 1200_000_0000);
+            assert_eq!(reserve_vault.total_b_tokens, 1000_0000000 - 16_6666666);
+
+            // update b_rate to 1.5
+            let expected_accrued_fee_2 = 39_333_3333;
+            mock_client.set_b_rate(&150_000_0000);
+            reserve_vault.update_rate(&e);
+
+            assert_eq!(
+                reserve_vault.accrued_fees,
+                expected_accrued_fee + expected_accrued_fee_2
+            );
+            assert_eq!(reserve_vault.total_shares, 1200_000_0000);
+            assert_eq!(
+                reserve_vault.total_b_tokens,
+                1000_0000000 - 16_6666666 - 39_333_3333
+            );
+        });
+    }
+
+    #[test]
+    fn test_update_rate_2() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let init_b_rate = 1_000_000_000;
+        let bombadil = Address::generate(&e);
+
+        let mock_client = mockpool::register_mock_pool_with_b_rate(&e, init_b_rate);
+        let vault_address = register_fee_vault(
+            &e,
+            Some((bombadil.clone(), mock_client.address.clone(), 200_0000)),
+        );
+
+        e.as_contract(&vault_address, || {
+            let mut reserve_vault = ReserveVault {
+                address: Address::generate(&e),
+                total_b_tokens: 500_000_0000000,
+                total_shares: 500_000_0000000,
+                b_rate: init_b_rate,
+                accrued_fees: 0,
+            };
+
+            let expected_accrued_fee = 1050_1384549;
+
+            let new_b_rate = 1_000_0000000 * SCALAR_9 / 989_4986154;
+            mock_client.set_b_rate(&new_b_rate);
+            reserve_vault.update_rate(&e);
+            let deposit_b_tokens = 989_4986154;
+            let shares = reserve_vault.b_tokens_to_shares_down(deposit_b_tokens);
+            reserve_vault.total_b_tokens += deposit_b_tokens;
+            reserve_vault.total_shares += shares;
+            assert_eq!(
+                reserve_vault.total_b_tokens,
+                500_000_0000000 + 989_4986154 - expected_accrued_fee
+            );
+            assert_eq!(reserve_vault.total_shares, 500_000_0000000 + 991_5812105);
+
+            assert_eq!(reserve_vault.b_rate, 1_010_612_834);
+
+            assert_eq!(reserve_vault.accrued_fees, expected_accrued_fee);
+        });
+    }
+
+    #[test]
+    fn test_update_rate_no_change() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let vault_address = register_fee_vault(&e, None);
+
+        e.as_contract(&vault_address, || {
+            let mut reserve_vault = ReserveVault {
+                address: Address::generate(&e),
+                total_b_tokens: 1000_0000000,
+                total_shares: 1200_0000000,
+                b_rate: 1_100_000_000,
+                accrued_fees: 12_0000000,
+            };
+
+            reserve_vault.update_rate(&e);
+            // assert nothing changes
+            assert_eq!(reserve_vault.accrued_fees, reserve_vault.accrued_fees);
+            assert_eq!(reserve_vault.total_shares, reserve_vault.total_shares);
+            assert_eq!(reserve_vault.total_b_tokens, reserve_vault.total_b_tokens);
+            assert_eq!(reserve_vault.b_rate, reserve_vault.b_rate);
+        });
+    }
+
+    #[test]
     fn test_deposit() {
         let e = Env::default();
         e.mock_all_auths();
@@ -771,6 +889,51 @@ mod tests {
             storage::set_reserve_vault(&e, &reserve, &reserve_vault);
 
             claim_fees(&e, reserve_vault);
+        });
+    }
+
+    #[test]
+    fn test_claim_fees_when_zero_shares() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let init_b_rate = 1_100_000_000;
+        let mock_client = mockpool::register_mock_pool_with_b_rate(&e, init_b_rate);
+        let vault_address = register_fee_vault(
+            &e,
+            Some((
+                Address::generate(&e),
+                mock_client.address.clone(),
+                0_1000000,
+            )),
+        );
+        let reserve = Address::generate(&e);
+
+        e.as_contract(&vault_address, || {
+            let accrued_fees = 5_0000000;
+
+            let reserve_vault = ReserveVault {
+                address: reserve.clone(),
+                total_b_tokens: 0,
+                total_shares: 0,
+                b_rate: init_b_rate,
+                accrued_fees,
+            };
+            storage::set_reserve_vault(&e, &reserve, &reserve_vault);
+
+            // Even if b_rate doubles, since there are no b_tokens deposited, no more fees should've been accrued
+            let new_b_rate = 2_000_000_000;
+            mock_client.set_b_rate(&new_b_rate);
+
+            let (b_tokens_burnt, underlying_balance_claimed) = claim_fees(&e, reserve_vault);
+
+            assert_eq!(b_tokens_burnt, accrued_fees);
+            assert_eq!(
+                underlying_balance_claimed,
+                b_tokens_burnt
+                    .fixed_mul_floor(new_b_rate, SCALAR_9)
+                    .unwrap()
+            );
         });
     }
 }
