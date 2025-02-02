@@ -78,10 +78,9 @@ impl FeeVault {
         let shares = storage::get_reserve_vault_shares(&e, &reserve, &user);
         if shares > 0 {
             let mut vault = storage::get_reserve_vault(&e, &reserve);
-            let new_b_rate = pool::reserve_b_rate(&e, &reserve);
             let b_tokens = vault.shares_to_b_tokens_down(shares);
 
-            reserve_vault::b_tokens_to_underlying(&e, &mut vault, b_tokens, new_b_rate)
+            reserve_vault::b_tokens_to_underlying(&e, &mut vault, b_tokens)
         } else {
             0
         }
@@ -99,9 +98,8 @@ impl FeeVault {
     /// * `ReserveNotFound` - If the reserve does not exist
     pub fn get_collected_fees(e: Env, reserve: Address) -> i128 {
         let mut vault = storage::get_reserve_vault(&e, &reserve);
-        let new_b_rate = pool::reserve_b_rate(&e, &reserve);
         let accrued_fees = vault.accrued_fees;
-        reserve_vault::b_tokens_to_underlying(&e, &mut vault, accrued_fees, new_b_rate)
+        reserve_vault::b_tokens_to_underlying(&e, &mut vault, accrued_fees)
     }
 
     /// Get the blend pool address
@@ -220,10 +218,9 @@ impl FeeVault {
         admin.require_auth();
 
         let vault = storage::get_reserve_vault(&e, &reserve);
-        let new_b_rate = pool::reserve_b_rate(&e, &reserve);
 
         let (tokens_withdrawn, b_tokens_burnt) = pool::withdraw(&e, &reserve, &to, amount);
-        reserve_vault::claim_fees(&e, vault, b_tokens_burnt, new_b_rate);
+        reserve_vault::claim_fees(&e, vault, b_tokens_burnt);
         FeeVaultEvents::vault_fee_claim(&e, &reserve, &admin, tokens_withdrawn, b_tokens_burnt);
         b_tokens_burnt
     }
@@ -247,10 +244,9 @@ impl FeeVault {
         user.require_auth();
 
         let vault = storage::get_reserve_vault(&e, &reserve);
-        let new_b_rate = pool::reserve_b_rate(&e, &reserve);
 
         let b_tokens_minted = pool::supply(&e, &reserve, &user, amount);
-        let new_shares = reserve_vault::deposit(&e, vault, &user, b_tokens_minted, new_b_rate);
+        let new_shares = reserve_vault::deposit(&e, vault, &user, b_tokens_minted);
         FeeVaultEvents::vault_deposit(&e, &reserve, &user, amount, new_shares, b_tokens_minted);
         new_shares
     }
@@ -273,9 +269,8 @@ impl FeeVault {
         user.require_auth();
 
         let vault = storage::get_reserve_vault(&e, &reserve);
-        let new_b_rate = pool::reserve_b_rate(&e, &reserve);
         let (tokens_withdrawn, b_tokens_burnt) = pool::withdraw(&e, &reserve, &user, amount);
-        let burnt_shares = reserve_vault::withdraw(&e, vault, &user, b_tokens_burnt, new_b_rate);
+        let burnt_shares = reserve_vault::withdraw(&e, vault, &user, b_tokens_burnt);
         FeeVaultEvents::vault_withdraw(
             &e,
             &reserve,

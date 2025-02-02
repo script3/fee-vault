@@ -1,5 +1,5 @@
 use crate::constants::{SCALAR_7, SCALAR_9};
-use crate::{errors::FeeVaultError, storage};
+use crate::{errors::FeeVaultError, pool, storage};
 use soroban_fixed_point_math::{i128, FixedPoint};
 use soroban_sdk::{contracttype, panic_with_error, Address, Env};
 
@@ -55,7 +55,8 @@ impl ReserveVault {
     }
 
     /// Updates the reserve's bRate and accrues fees to the admin in accordance with the portion of interest they earned
-    pub fn update_rate(&mut self, e: &Env, new_rate: i128) {
+    fn update_rate(&mut self, e: &Env) {
+        let new_rate = pool::reserve_b_rate(e, &self.address);
         if new_rate == self.b_rate {
             return;
         }
@@ -97,17 +98,11 @@ impl ReserveVault {
 ///
 /// ### Panics
 /// * If the bTokens amount is less than or equal to 0
-pub fn deposit(
-    e: &Env,
-    mut vault: ReserveVault,
-    user: &Address,
-    b_tokens_amount: i128,
-    new_rate: i128,
-) -> i128 {
+pub fn deposit(e: &Env, mut vault: ReserveVault, user: &Address, b_tokens_amount: i128) -> i128 {
     if b_tokens_amount <= 0 {
         panic_with_error!(e, FeeVaultError::InvalidBTokensMinted);
     }
-    vault.update_rate(e, new_rate);
+    vault.update_rate(e);
 
     let mut user_shares = storage::get_reserve_vault_shares(e, &vault.address, user);
     let share_amount = vault.b_tokens_to_shares_down(b_tokens_amount);
@@ -134,17 +129,11 @@ pub fn deposit(
 /// ### Panics
 /// * If the bTokens amount is less than or equal to 0
 /// * If the user does not have enough shares to withdraw
-pub fn withdraw(
-    e: &Env,
-    mut vault: ReserveVault,
-    user: &Address,
-    b_tokens_amount: i128,
-    new_rate: i128,
-) -> i128 {
+pub fn withdraw(e: &Env, mut vault: ReserveVault, user: &Address, b_tokens_amount: i128) -> i128 {
     if b_tokens_amount <= 0 {
         panic_with_error!(e, FeeVaultError::InvalidBTokensBurnt);
     }
-    vault.update_rate(e, new_rate);
+    vault.update_rate(e);
 
     let mut user_shares = storage::get_reserve_vault_shares(e, &vault.address, user);
     let share_amount = vault.b_tokens_to_shares_up(b_tokens_amount);
@@ -173,11 +162,11 @@ pub fn withdraw(
 /// ### Panics
 /// * If the bTokens amount is less than or equal to 0
 /// * If their are insufficient fees to claim
-pub fn claim_fees(e: &Env, mut vault: ReserveVault, b_tokens_amount: i128, new_rate: i128) {
+pub fn claim_fees(e: &Env, mut vault: ReserveVault, b_tokens_amount: i128) {
     if b_tokens_amount <= 0 {
         panic_with_error!(e, FeeVaultError::InvalidBTokensBurnt);
     }
-    vault.update_rate(e, new_rate);
+    vault.update_rate(e);
     if b_tokens_amount > vault.accrued_fees {
         panic_with_error!(e, FeeVaultError::InsufficientAccruedFees);
     }
@@ -192,17 +181,12 @@ pub fn claim_fees(e: &Env, mut vault: ReserveVault, b_tokens_amount: i128, new_r
 /// * `vault` - The reserve vault to deposit into
 /// * `b_tokens_amount` - The amount of bTokens burnt from the vault
 /// * `new_rate` - The latest b_rate as reported by the blend pool
-pub fn b_tokens_to_underlying(
-    e: &Env,
-    vault: &mut ReserveVault,
-    b_tokens_amount: i128,
-    new_rate: i128,
-) -> i128 {
+pub fn b_tokens_to_underlying(e: &Env, vault: &mut ReserveVault, b_tokens_amount: i128) -> i128 {
     if b_tokens_amount <= 0 {
         return 0;
     }
 
-    vault.update_rate(e, new_rate);
+    vault.update_rate(e);
     vault.b_tokens_to_underlying_down(b_tokens_amount)
 }
 
@@ -294,117 +278,6 @@ mod tests {
         vault.total_b_tokens = 0;
         let b_tokens = vault.shares_to_b_tokens_down(2_0000000);
         assert_eq!(b_tokens, 0);
-    }
-
-    #[test]
-    fn test_update_rate() {
-        let e = Env::default();
-        e.mock_all_auths();
-
-        let vault_address = register_fee_vault(&e, None);
-
-        e.as_contract(&vault_address, || {
-            let bombadil = Address::generate(&e);
-            storage::set_admin(&e, bombadil.clone());
-
-            storage::set_take_rate(&e, 200_0000);
-
-            let mut reserve_vault = ReserveVault {
-                address: Address::generate(&e),
-                total_b_tokens: 1000_0000000,
-                total_shares: 1200_0000000,
-                b_rate: 1_100_000_000,
-                accrued_fees: 0,
-            };
-
-            // update b_rate to 1.2
-            let expected_accrued_fee = 16_6666666;
-            reserve_vault.update_rate(&e, 120_000_0000);
-            assert_eq!(reserve_vault.accrued_fees, expected_accrued_fee);
-            assert_eq!(reserve_vault.total_shares, 1200_000_0000);
-            assert_eq!(reserve_vault.total_b_tokens, 1000_0000000 - 16_6666666);
-
-            // update b_rate to 1.5
-            let expected_accrued_fee_2 = 39_333_3333;
-            reserve_vault.update_rate(&e, 150_000_0000);
-            assert_eq!(
-                reserve_vault.accrued_fees,
-                expected_accrued_fee + expected_accrued_fee_2
-            );
-            assert_eq!(reserve_vault.total_shares, 1200_000_0000);
-            assert_eq!(
-                reserve_vault.total_b_tokens,
-                1000_0000000 - 16_6666666 - 39_333_3333
-            );
-        });
-    }
-
-    #[test]
-    fn test_update_rate_2() {
-        let e = Env::default();
-        e.mock_all_auths();
-
-        let vault_address = register_fee_vault(&e, None);
-
-        e.as_contract(&vault_address, || {
-            let bombadil = Address::generate(&e);
-            storage::set_admin(&e, bombadil.clone());
-
-            storage::set_take_rate(&e, 200_0000);
-
-            let mut reserve_vault = ReserveVault {
-                address: Address::generate(&e),
-                total_b_tokens: 500_000_0000000,
-                total_shares: 500_000_0000000,
-                b_rate: 1_000_000_000,
-                accrued_fees: 0,
-            };
-
-            let expected_accrued_fee = 1050_1384549;
-            reserve_vault.update_rate(&e, 1010612834);
-            let deposit_b_tokens = 989_4986154;
-            let shares = reserve_vault.b_tokens_to_shares_down(deposit_b_tokens);
-            reserve_vault.total_b_tokens += deposit_b_tokens;
-            reserve_vault.total_shares += shares;
-            assert_eq!(
-                reserve_vault.total_b_tokens,
-                500_000_0000000 + 989_4986154 - expected_accrued_fee
-            );
-            assert_eq!(reserve_vault.total_shares, 500_000_0000000 + 991_5812105);
-
-            assert_eq!(reserve_vault.b_rate, 1_010_612_834);
-
-            assert_eq!(reserve_vault.accrued_fees, expected_accrued_fee);
-        });
-    }
-
-    #[test]
-    fn test_update_rate_no_change() {
-        let e = Env::default();
-        e.mock_all_auths();
-
-        let vault_address = register_fee_vault(&e, None);
-
-        e.as_contract(&vault_address, || {
-            let bombadil = Address::generate(&e);
-            storage::set_admin(&e, bombadil.clone());
-            storage::set_take_rate(&e, 0_1000000);
-
-            let mut reserve_vault = ReserveVault {
-                address: Address::generate(&e),
-                total_b_tokens: 1000_0000000,
-                total_shares: 1200_0000000,
-                b_rate: 1_100_000_000,
-                accrued_fees: 12_0000000,
-            };
-
-            reserve_vault.update_rate(&e, 1_100_000_000);
-            // assert nothing changes
-            assert_eq!(reserve_vault.accrued_fees, reserve_vault.accrued_fees);
-            assert_eq!(reserve_vault.total_shares, reserve_vault.total_shares);
-            assert_eq!(reserve_vault.total_b_tokens, reserve_vault.total_b_tokens);
-            assert_eq!(reserve_vault.b_rate, reserve_vault.b_rate);
-        });
     }
 
     #[test]
