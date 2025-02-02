@@ -58,7 +58,7 @@ fn test_constructor_negative_take_rate() {
     let e = Env::default();
     e.mock_all_auths();
     let samwise = Address::generate(&e);
-    // Note: This fails with `InvalidAction`` during testing, rather than `InvalidTakeRate`
+    // Note: This fails with `InvalidAction` during testing, rather than `InvalidTakeRate`
     register_fee_vault(&e, Some((samwise.clone(), samwise.clone(), -1)));
 }
 
@@ -69,7 +69,7 @@ fn test_constructor_take_rate_over_max() {
     e.mock_all_auths();
     let samwise = Address::generate(&e);
 
-    // Note: This fails with `InvalidAction`` during testing, rather than `InvalidTakeRate`
+    // Note: This fails with `InvalidAction` during testing, rather than `InvalidTakeRate`
     register_fee_vault(&e, Some((samwise.clone(), samwise.clone(), 1_000_0001)));
 }
 
@@ -124,10 +124,13 @@ fn test_get_b_tokens() {
     );
 
     // The view function shouldn't mutate the state
-    let new_vault = vault_client.get_reserve_vault(&reserve);
-    assert_eq!(new_vault.total_b_tokens, 1000_0000000);
-    assert_eq!(new_vault.accrued_fees, 0);
-    assert_eq!(new_vault.b_rate, 1_000_000_000);
+    e.as_contract(&vault_address, || {
+        let reserve_vault = storage::get_reserve_vault(&e, &reserve);
+        assert_eq!(reserve_vault.accrued_fees, 0);
+        assert_eq!(reserve_vault.total_b_tokens, 1000_0000000);
+        assert_eq!(reserve_vault.total_shares, 1200_0000000);
+        assert_eq!(reserve_vault.b_rate, 1_000_000_000);
+    });
 
     // Should return 0 if vault doesn't exist or user doesn't have any shares
     let non_existent_reserve = Address::generate(&e);
