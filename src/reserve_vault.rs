@@ -54,6 +54,10 @@ impl ReserveVault {
             .fixed_div_floor(b_tokens_amount, SCALAR_9)
             .unwrap();
 
+        if new_rate == self.b_rate {
+            return;
+        }
+
         // Calculate the total accrued b_tokens - 7 decimal places of precision
         let admin_take_b_tokens = self
             .total_b_tokens
