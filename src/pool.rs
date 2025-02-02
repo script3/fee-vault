@@ -72,7 +72,6 @@ pub fn reserve_b_rate(e: &Env, reserve: &Address) -> i128 {
     get_pool_client(&e).get_reserve(reserve).b_rate
 }
 
-#[inline]
 fn get_pool_client(e: &Env) -> PoolClient {
     PoolClient::new(&e, &storage::get_pool(&e))
 }
