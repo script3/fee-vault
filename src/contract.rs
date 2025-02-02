@@ -18,19 +18,26 @@ impl FeeVault {
     /// ### Arguments
     /// * `admin` - The admin address
     /// * `pool` - The blend pool address
-    /// * `apr_cap` - The APR cap, 7 decimal precision
+    /// * `is_apr_capped` - Whether the vault will be APR capped
+    /// * `value` - The APR cap if `is_apr_capped`, the admin take_rate otherwise
     ///
     /// ### Panics
-    /// * `InvalidAprCap` - If the apr_cap is not within 0 and 1_000_0000
-    pub fn __constructor(e: Env, admin: Address, pool: Address, apr_cap: i128) {
+    /// * `InvalidFeeModeValue` - If the value is not within 0 and 1_000_0000
+    pub fn __constructor(e: Env, admin: Address, pool: Address, is_apr_capped: bool, value: i128) {
         admin.require_auth();
-        if apr_cap < 0 || apr_cap > 1_000_0000 {
-            panic_with_error!(&e, FeeVaultError::InvalidAprCap);
+        if value < 0 || value > 1_000_0000 {
+            panic_with_error!(&e, FeeVaultError::InvalidFeeModeValue);
         }
 
         storage::set_admin(&e, admin);
         storage::set_pool(&e, pool);
-        storage::set_apr_cap(&e, apr_cap);
+        storage::set_fee_mode(
+            &e,
+            storage::FeeMode {
+                is_apr_capped,
+                value,
+            },
+        );
     }
 
     //********** Read-Only ***********//
@@ -126,21 +133,31 @@ impl FeeVault {
     //********** Read-Write Admin Only ***********//
 
     /// ADMIN ONLY
-    /// Sets the APR cap for the fee vault
+    /// Sets the Fee mode for the fee vault
     ///
     /// ### Arguments
     /// * `e` - The environment object
-    /// * `apr_cap` - The new APR cap to set
+    /// * `is_apr_capped` - Whether the vault will be APR capped
+    /// * `value` - The APR cap if `is_apr_capped`, the admin take_rate otherwise
     ///
     /// ### Panics
-    /// * `InvalidAprCap` - If the take rate is not within 0 and 1_000_0000
-    pub fn set_apr_cap(e: Env, apr_cap: i128) {
+    /// * `InvalidFeeModeValue` - If the value is not within 0 and 1_000_0000
+    pub fn set_fee_mode(e: Env, is_apr_capped: bool, value: i128) {
         storage::extend_instance(&e);
         storage::get_admin(&e).require_auth();
-        if apr_cap < 0 || apr_cap > 1_000_0000 {
-            panic_with_error!(&e, FeeVaultError::InvalidAprCap);
+        if value < 0 || value > 1_000_0000 {
+            panic_with_error!(&e, FeeVaultError::InvalidFeeModeValue);
         }
-        storage::set_apr_cap(&e, apr_cap);
+
+        storage::set_fee_mode(
+            &e,
+            storage::FeeMode {
+                is_apr_capped,
+                value,
+            },
+        );
+
+        FeeVaultEvents::fee_mode_updated(&e, is_apr_capped, value);
     }
 
     /// ADMIN ONLY

@@ -78,30 +78,40 @@ impl ReserveVault {
             return;
         }
 
-        let target_apr = storage::get_apr_cap(e);
-        let time_elapsed = now - self.last_update_timestamp;
+        let fee_mode = storage::get_fee_mode(e);
+        let admin_take_b_tokens = if fee_mode.is_apr_capped {
+            let target_apr = fee_mode.value;
+            let time_elapsed = now - self.last_update_timestamp;
 
-        let target_growth_rate =
-            100 * target_apr * (time_elapsed as i128) / SECONDS_PER_YEAR + SCALAR_9;
+            let target_growth_rate =
+                100 * target_apr * (time_elapsed as i128) / SECONDS_PER_YEAR + SCALAR_9;
 
-        let target_b_rate = self
-            .b_rate
-            .fixed_mul_ceil(target_growth_rate, SCALAR_9)
-            .unwrap();
+            let target_b_rate = self
+                .b_rate
+                .fixed_mul_ceil(target_growth_rate, SCALAR_9)
+                .unwrap();
+
+            // If the target APR wasn't reached, no fees are accrued
+            if target_b_rate >= new_rate {
+                0
+            } else {
+                self.total_b_tokens
+                    .fixed_mul_ceil(new_rate - target_b_rate, new_rate)
+                    .unwrap()
+            }
+        } else {
+            let admin_take_rate = fee_mode.value;
+            self.total_b_tokens
+                .fixed_mul_floor(new_rate - self.b_rate, SCALAR_9)
+                .unwrap()
+                .fixed_mul_floor(admin_take_rate, SCALAR_7)
+                .unwrap()
+                .fixed_div_floor(new_rate, SCALAR_9)
+                .unwrap()
+        };
 
         self.last_update_timestamp = now;
         self.b_rate = new_rate;
-
-        // If the target APR wasn't reached, no fees are accrued
-        if target_b_rate >= new_rate {
-            return;
-        }
-
-        let admin_take_b_tokens = self
-            .total_b_tokens
-            .fixed_mul_ceil(new_rate - target_b_rate, new_rate)
-            .unwrap();
-
         // if no interest was accrued we do not accrue fees
         if admin_take_b_tokens <= 0 {
             return;

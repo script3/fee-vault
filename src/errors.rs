@@ -11,7 +11,7 @@ pub enum FeeVaultError {
     ReserveAlreadyExists = 101,
     InvalidAmount = 102,
     InsufficientAccruedFees = 103,
-    InvalidAprCap = 104,
+    InvalidFeeModeValue = 104,
     InsufficientReserves = 105,
     InvalidBTokensMinted = 106,
     InvalidBTokensBurnt = 107,
