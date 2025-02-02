@@ -251,6 +251,8 @@ pub mod mockpool {
 
     use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Env, Symbol};
 
+    use super::EnvTestUtils;
+
     const BRATE: Symbol = symbol_short!("b_rate");
     #[derive(Clone)]
     #[contracttype]
@@ -309,5 +311,12 @@ pub mod mockpool {
     pub fn register_mock_pool_with_b_rate(e: &Env, b_rate: i128) -> MockPoolClient {
         let pool_address = e.register(MockPool {}, (b_rate,));
         MockPoolClient::new(e, &pool_address)
+    }
+
+    /// Updates the mock pool's b_rate and also updates
+    /// the timestamp to make sure `reserve_vault::update_rate` doesn't return early.
+    pub fn set_b_rate(e: &Env, mock_pool_client: &MockPoolClient, b_rate: i128) {
+        e.jump(5);
+        mock_pool_client.set_b_rate(&b_rate);
     }
 }
