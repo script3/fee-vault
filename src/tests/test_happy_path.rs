@@ -308,7 +308,7 @@ fn test_happy_path() {
 
     // claim fees for usdc. There is a rounding loss of 1 stroop.
     let expected_fees = merry_profit.fixed_mul_floor(0_1000000, SCALAR_7).unwrap() - 1;
-    fee_vault_client.claim_fees(&usdc, &gandalf, &expected_fees);
+    fee_vault_client.claim_fees(&usdc, &gandalf);
 
     // -> verify claim fees auth
     assert_eq!(

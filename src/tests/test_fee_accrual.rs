@@ -275,7 +275,7 @@ fn test_fee_accrual() {
         .accrued_fees
         .fixed_mul_floor(usdc_vault.b_rate, SCALAR_9)
         .unwrap();
-    fee_vault_client.claim_fees(&usdc, &bombadil, &admin_usdc_fees);
+    fee_vault_client.claim_fees(&usdc, &bombadil);
     assert_eq!(
         usdc_client.balance(&bombadil),
         admin_usdc_fees + pre_claim_usdc
@@ -297,7 +297,7 @@ fn test_fee_accrual() {
         .fixed_mul_floor(xlm_vault.b_rate, SCALAR_9)
         .unwrap()
         - 10;
-    fee_vault_client.claim_fees(&xlm, &bombadil, &admin_xlm_fees);
+    fee_vault_client.claim_fees(&xlm, &bombadil);
     assert_eq!(
         xlm_client.balance(&bombadil),
         admin_xlm_fees + pre_claim_xlm

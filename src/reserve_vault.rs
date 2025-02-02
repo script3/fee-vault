@@ -460,7 +460,7 @@ mod tests {
             };
             storage::set_reserve_vault(&e, &reserve, &reserve_vault);
 
-            withdraw(&e, reserve_vault, &samwise, 0, 1_100_000_000);
+            withdraw(&e, reserve_vault, &samwise, 0);
         });
     }
 
@@ -489,7 +489,7 @@ mod tests {
             let b_tokens = reserve_vault.total_b_tokens + 1;
 
             storage::set_reserve_vault_shares(&e, &reserve, &samwise, reserve_vault.total_shares);
-            withdraw(&e, reserve_vault, &samwise, b_tokens, 1_100_000_000);
+            withdraw(&e, reserve_vault, &samwise, b_tokens);
         });
     }
 
@@ -515,7 +515,6 @@ mod tests {
             storage::set_reserve_vault(&e, &reserve, &reserve_vault);
 
             // Perform a withdraw for samwise
-            let new_b_rate = 1_110_000_000;
             let b_tokens = 83_3333300;
             let expected_share_amount = 100_0901674;
             storage::set_reserve_vault_shares(&e, &reserve, &samwise, expected_share_amount - 1);
@@ -584,34 +583,6 @@ mod tests {
             };
             storage::set_reserve_vault(&e, &reserve, &reserve_vault);
 
-            claim_fees(&e, reserve_vault);
-        });
-    }
-
-    #[test]
-    #[should_panic(expected = "Error(Contract, #103)")]
-    fn test_claim_fees_b_tokens_more_than_accrued() {
-        let e = Env::default();
-        e.mock_all_auths();
-
-        let vault_address = register_fee_vault(&e, None);
-        let reserve = Address::generate(&e);
-
-        e.as_contract(&vault_address, || {
-            storage::set_take_rate(&e, 0_1000000);
-            let reserve_vault = ReserveVault {
-                address: reserve.clone(),
-                total_b_tokens: 1000_0000000,
-                total_shares: 1200_0000000,
-                b_rate: 1_100_000_000,
-                accrued_fees: 5_0000000,
-            };
-            storage::set_reserve_vault(&e, &reserve, &reserve_vault);
-
-            // Perform a deposit for samwise
-            let new_b_rate = 1_110_000_000;
-            let expected_b_token_fees = 0_9009009;
-            let b_tokens = 5_0000000 + expected_b_token_fees + 1;
             claim_fees(&e, reserve_vault);
         });
     }
