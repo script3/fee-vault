@@ -181,633 +181,546 @@ pub fn claim_fees(e: &Env, mut vault: ReserveVault, b_tokens_amount: i128, new_r
     storage::set_reserve_vault(e, &vault.address, &vault);
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use crate::testutils::register_fee_vault;
-//     use soroban_sdk::{testutils::Address as _, Address};
-
-//     #[test]
-//     fn test_b_tokens_to_shares_down() {
-//         let e = Env::default();
-//         let mut vault = ReserveVault {
-//             address: Address::generate(&e),
-//             reserve_id: 0,
-//             b_rate: 1_000_000_000,
-//             total_shares: 0,
-//             total_b_tokens: 0,
-//             accrued_fees: 0,
-//         };
-
-//         // rounds down
-//         vault.total_shares = 200_0000001;
-//         vault.total_b_tokens = 100_0000000;
-//         let b_tokens = vault.b_tokens_to_shares_down(1_0000000);
-//         assert_eq!(b_tokens, 2_0000000);
-
-//         // returns amount if total_shares is 0
-//         vault.total_shares = 0;
-//         vault.total_b_tokens = 100_0000000;
-//         let b_tokens = vault.b_tokens_to_shares_down(1_0000000);
-//         assert_eq!(b_tokens, 1_0000000);
-
-//         // returns amount if total_b_tokens is 0
-//         vault.total_shares = 200_0000000;
-//         vault.total_b_tokens = 0;
-//         let b_tokens = vault.b_tokens_to_shares_down(1_0000000);
-//         assert_eq!(b_tokens, 1_0000000);
-//     }
-
-//     #[test]
-//     fn test_b_tokens_to_shares_up() {
-//         let e = Env::default();
-//         let mut vault = ReserveVault {
-//             address: Address::generate(&e),
-//             reserve_id: 0,
-//             b_rate: 1_000_000_000,
-//             total_shares: 0,
-//             total_b_tokens: 0,
-//             accrued_fees: 0,
-//         };
-
-//         // rounds up
-//         vault.total_shares = 200_0000001;
-//         vault.total_b_tokens = 100_0000000;
-//         let b_tokens = vault.b_tokens_to_shares_up(1_0000000);
-//         assert_eq!(b_tokens, 2_0000001);
-
-//         // returns amount if total_shares is 0
-//         vault.total_shares = 0;
-//         vault.total_b_tokens = 100_0000000;
-//         let b_tokens = vault.b_tokens_to_shares_up(1_0000000);
-//         assert_eq!(b_tokens, 1_0000000);
-
-//         // returns amount if total_b_tokens is 0
-//         vault.total_shares = 200_0000000;
-//         vault.total_b_tokens = 0;
-//         let b_tokens = vault.b_tokens_to_shares_up(1_0000000);
-//         assert_eq!(b_tokens, 1_0000000);
-//     }
-
-//     #[test]
-//     fn test_shares_to_b_tokens_down() {
-//         let e = Env::default();
-//         let mut vault = ReserveVault {
-//             address: Address::generate(&e),
-//             reserve_id: 0,
-//             b_rate: 1_000_000_000,
-//             total_shares: 0,
-//             total_b_tokens: 0,
-//             accrued_fees: 0,
-//         };
-
-//         // rounds down
-//         vault.total_shares = 200_0000001;
-//         vault.total_b_tokens = 100_0000000;
-//         let b_tokens = vault.shares_to_b_tokens_down(2_0000000);
-//         assert_eq!(b_tokens, 0_9999999);
-
-//         // returns 0 if total_b_tokens is 0
-//         vault.total_shares = 200_0000000;
-//         vault.total_b_tokens = 0;
-//         let b_tokens = vault.shares_to_b_tokens_down(2_0000000);
-//         assert_eq!(b_tokens, 0);
-//     }
-
-//     #[test]
-//     fn test_update_rate() {
-//         let e = Env::default();
-//         e.mock_all_auths();
-
-//         let vault_address = register_fee_vault(&e, None);
-
-//         e.as_contract(&vault_address, || {
-//             let bombadil = Address::generate(&e);
-//             storage::set_admin(&e, bombadil.clone());
-
-//             storage::set_take_rate(&e, 200_0000);
-
-//             let mut reserve_vault = ReserveVault {
-//                 address: Address::generate(&e),
-//                 reserve_id: 0,
-//                 total_b_tokens: 1000_0000000,
-//                 total_shares: 1200_0000000,
-//                 b_rate: 1_100_000_000,
-//                 accrued_fees: 0,
-//             };
-
-//             // update b_rate to 1.2
-//             let expected_accrued_fee = 16_6666666;
-//             reserve_vault.update_rate(&e, 120_000_0000, 100_000_0000);
-//             assert_eq!(reserve_vault.accrued_fees, expected_accrued_fee);
-//             assert_eq!(reserve_vault.total_shares, 1200_000_0000);
-//             assert_eq!(reserve_vault.total_b_tokens, 1000_0000000 - 16_6666666);
-
-//             // update b_rate to 1.5
-//             let expected_accrued_fee_2 = 39_333_3333;
-//             reserve_vault.update_rate(&e, 150_000_0000, 100_000_0000);
-//             assert_eq!(
-//                 reserve_vault.accrued_fees,
-//                 expected_accrued_fee + expected_accrued_fee_2
-//             );
-//             assert_eq!(reserve_vault.total_shares, 1200_000_0000);
-//             assert_eq!(
-//                 reserve_vault.total_b_tokens,
-//                 1000_0000000 - 16_6666666 - 39_333_3333
-//             );
-//         });
-//     }
-
-//     #[test]
-//     fn test_update_rate_2() {
-//         let e = Env::default();
-//         e.mock_all_auths();
-
-//         let vault_address = register_fee_vault(&e, None);
-
-//         e.as_contract(&vault_address, || {
-//             let bombadil = Address::generate(&e);
-//             storage::set_admin(&e, bombadil.clone());
-
-//             storage::set_take_rate(&e, 200_0000);
-
-//             let mut reserve_vault = ReserveVault {
-//                 address: Address::generate(&e),
-//                 reserve_id: 0,
-//                 total_b_tokens: 500_000_0000000,
-//                 total_shares: 500_000_0000000,
-//                 b_rate: 1_000_000_000,
-//                 accrued_fees: 0,
-//             };
-
-//             let expected_accrued_fee = 1050_1384549;
-//             reserve_vault.update_rate(&e, 1_000_0000000, 989_4986154);
-//             let deposit_b_tokens = 989_4986154;
-//             let shares = reserve_vault.b_tokens_to_shares_down(deposit_b_tokens);
-//             reserve_vault.total_b_tokens += deposit_b_tokens;
-//             reserve_vault.total_shares += shares;
-//             assert_eq!(
-//                 reserve_vault.total_b_tokens,
-//                 500_000_0000000 + 989_4986154 - expected_accrued_fee
-//             );
-//             assert_eq!(reserve_vault.total_shares, 500_000_0000000 + 991_5812105);
-
-//             assert_eq!(reserve_vault.b_rate, 1_010_612_834);
-
-//             assert_eq!(reserve_vault.accrued_fees, expected_accrued_fee);
-//         });
-//     }
-
-//     #[test]
-//     fn test_update_rate_no_change() {
-//         let e = Env::default();
-//         e.mock_all_auths();
-
-//         let vault_address = register_fee_vault(&e, None);
-
-//         e.as_contract(&vault_address, || {
-//             let bombadil = Address::generate(&e);
-//             storage::set_admin(&e, bombadil.clone());
-//             storage::set_take_rate(&e, 0_1000000);
-
-//             let mut reserve_vault = ReserveVault {
-//                 address: Address::generate(&e),
-//                 reserve_id: 0,
-//                 total_b_tokens: 1000_0000000,
-//                 total_shares: 1200_0000000,
-//                 b_rate: 1_100_000_000,
-//                 accrued_fees: 12_0000000,
-//             };
-
-//             let b_tokens = 100_0000000;
-//             let underlying = 110_0000000;
-//             reserve_vault.update_rate(&e, underlying, b_tokens);
-//             // assert nothing changes
-//             assert_eq!(reserve_vault.accrued_fees, reserve_vault.accrued_fees);
-//             assert_eq!(reserve_vault.total_shares, reserve_vault.total_shares);
-//             assert_eq!(reserve_vault.total_b_tokens, reserve_vault.total_b_tokens);
-//             assert_eq!(reserve_vault.b_rate, reserve_vault.b_rate);
-//         });
-//     }
-
-//     #[test]
-//     fn test_deposit() {
-//         let e = Env::default();
-//         e.mock_all_auths();
-
-//         let vault_address = register_fee_vault(&e, None);
-//         let samwise = Address::generate(&e);
-//         let reserve = Address::generate(&e);
-
-//         e.as_contract(&vault_address, || {
-//             storage::set_take_rate(&e, 0_1000000);
-//             let reserve_vault = ReserveVault {
-//                 address: reserve.clone(),
-//                 reserve_id: 0,
-//                 total_b_tokens: 1000_0000000,
-//                 total_shares: 1200_0000000,
-//                 b_rate: 1_100_000_000,
-//                 accrued_fees: 0,
-//             };
-//             storage::set_reserve_vault(&e, &reserve, &reserve_vault);
-
-//             // Perform a deposit for samwise
-//             let new_b_rate = 1_110_000_000;
-//             let b_tokens = 83_3333300;
-//             let underlying = b_tokens.fixed_mul_floor(new_b_rate, SCALAR_9).unwrap();
-//             let expected_b_token_fees = 0_9009009;
-//             let expected_share_amount = 100_0901673;
-//             deposit(&e, reserve_vault, &samwise, underlying, b_tokens);
-
-//             // Load the updated reserve to verify the changes
-//             let new_vault = storage::get_reserve_vault(&e, &reserve);
-//             assert_eq!(new_vault.total_shares, 1200_0000000 + expected_share_amount);
-//             assert_eq!(
-//                 new_vault.total_b_tokens,
-//                 1000_0000000 + b_tokens - expected_b_token_fees
-//             );
-//             assert_eq!(new_vault.b_rate, new_b_rate);
-//             assert_eq!(new_vault.accrued_fees, expected_b_token_fees);
-
-//             let new_balance = storage::get_reserve_vault_shares(&e, &reserve, &samwise);
-//             assert_eq!(new_balance, expected_share_amount);
-//         });
-//     }
-
-//     #[test]
-//     fn test_initial_deposit() {
-//         let e = Env::default();
-//         e.mock_all_auths_allowing_non_root_auth();
-
-//         let vault_address = register_fee_vault(&e, None);
-//         let samwise = Address::generate(&e);
-//         let reserve = Address::generate(&e);
-
-//         e.as_contract(&vault_address, || {
-//             storage::set_take_rate(&e, 0_1000000);
-//             let reserve_vault = ReserveVault {
-//                 address: reserve.clone(),
-//                 reserve_id: 0,
-//                 total_b_tokens: 0,
-//                 total_shares: 0,
-//                 b_rate: 1_000_000_000,
-//                 accrued_fees: 0,
-//             };
-//             storage::set_reserve_vault(&e, &reserve, &reserve_vault);
-
-//             // Perform a deposit for samwise
-//             let new_b_rate = 1_100_000_000;
-//             let b_tokens = 80_0000000;
-//             let underlying = b_tokens.fixed_mul_floor(new_b_rate, SCALAR_9).unwrap();
-//             deposit(&e, reserve_vault, &samwise, underlying, b_tokens);
-
-//             // Load the updated reserve to verify the changes
-//             let expected_share_amount = b_tokens;
-//             let new_vault = storage::get_reserve_vault(&e, &reserve);
-//             assert_eq!(new_vault.total_shares, expected_share_amount);
-//             assert_eq!(new_vault.total_b_tokens, b_tokens);
-//             assert_eq!(new_vault.b_rate, new_b_rate);
-//             // no fees should accrue against 0 deposits
-//             assert_eq!(new_vault.accrued_fees, 0);
-
-//             let new_balance = storage::get_reserve_vault_shares(&e, &reserve, &samwise);
-//             assert_eq!(new_balance, expected_share_amount);
-//         });
-//     }
-
-//     #[test]
-//     #[should_panic(expected = "Error(Contract, #106)")]
-//     fn test_deposit_zero_b_tokens() {
-//         let e = Env::default();
-//         e.mock_all_auths();
-
-//         let vault_address = register_fee_vault(&e, None);
-//         let samwise = Address::generate(&e);
-//         let reserve = Address::generate(&e);
-
-//         e.as_contract(&vault_address, || {
-//             storage::set_take_rate(&e, 0_1000000);
-//             let reserve_vault = ReserveVault {
-//                 address: reserve.clone(),
-//                 reserve_id: 0,
-//                 total_b_tokens: 1000_0000000,
-//                 total_shares: 1200_0000000,
-//                 b_rate: 1_100_000_000,
-//                 accrued_fees: 0,
-//             };
-//             storage::set_reserve_vault(&e, &reserve, &reserve_vault);
-
-//             deposit(&e, reserve_vault, &samwise, 1, 0);
-//         });
-//     }
-
-//     #[test]
-//     #[should_panic(expected = "Error(Contract, #102)")]
-//     fn test_deposit_zero_amount() {
-//         let e = Env::default();
-//         e.mock_all_auths();
-
-//         let vault_address = register_fee_vault(&e, None);
-//         let samwise = Address::generate(&e);
-//         let reserve = Address::generate(&e);
-
-//         e.as_contract(&vault_address, || {
-//             storage::set_take_rate(&e, 0_1000000);
-//             let reserve_vault = ReserveVault {
-//                 address: reserve.clone(),
-//                 reserve_id: 0,
-//                 total_b_tokens: 1000_0000000,
-//                 total_shares: 1200_0000000,
-//                 b_rate: 1_100_000_000,
-//                 accrued_fees: 0,
-//             };
-//             storage::set_reserve_vault(&e, &reserve, &reserve_vault);
-
-//             deposit(&e, reserve_vault, &samwise, 0, 1);
-//         });
-//     }
-
-//     #[test]
-//     fn test_withdraw() {
-//         let e = Env::default();
-//         e.mock_all_auths();
-
-//         let vault_address = register_fee_vault(&e, None);
-//         let samwise = Address::generate(&e);
-//         let reserve = Address::generate(&e);
-
-//         e.as_contract(&vault_address, || {
-//             storage::set_take_rate(&e, 0_1000000);
-//             let reserve_vault = ReserveVault {
-//                 address: reserve.clone(),
-//                 reserve_id: 0,
-//                 total_b_tokens: 1000_0000000,
-//                 total_shares: 1200_0000000,
-//                 b_rate: 1_100_000_000,
-//                 accrued_fees: 0,
-//             };
-//             storage::set_reserve_vault(&e, &reserve, &reserve_vault);
-
-//             // Perform a withdraw for samwise
-//             let new_b_rate = 1_110_000_000;
-//             let b_tokens = 83_3333300;
-//             let underlying = b_tokens.fixed_mul_floor(new_b_rate, SCALAR_9).unwrap();
-//             let expected_share_amount = 100_0901674;
-//             let expected_b_token_fees = 0_9009009;
-//             storage::set_reserve_vault_shares(&e, &reserve, &samwise, expected_share_amount);
-//             withdraw(&e, reserve_vault, &samwise, underlying, b_tokens);
-
-//             // Load the updated reserve to verify the changes
-//             let new_vault = storage::get_reserve_vault(&e, &reserve);
-//             assert_eq!(new_vault.total_shares, 1200_0000000 - expected_share_amount);
-//             assert_eq!(
-//                 new_vault.total_b_tokens,
-//                 1000_0000000 - b_tokens - expected_b_token_fees
-//             );
-//             assert_eq!(new_vault.b_rate, new_b_rate);
-//             assert_eq!(new_vault.accrued_fees, expected_b_token_fees);
-
-//             let new_balance = storage::get_reserve_vault_shares(&e, &reserve, &samwise);
-//             assert_eq!(new_balance, 0);
-//         });
-//     }
-
-//     #[test]
-//     #[should_panic(expected = "Error(Contract, #107)")]
-//     fn test_withdraw_zero_b_tokens() {
-//         let e = Env::default();
-//         e.mock_all_auths();
-
-//         let vault_address = register_fee_vault(&e, None);
-//         let samwise = Address::generate(&e);
-//         let reserve = Address::generate(&e);
-
-//         e.as_contract(&vault_address, || {
-//             storage::set_take_rate(&e, 0_1000000);
-//             let reserve_vault = ReserveVault {
-//                 address: reserve.clone(),
-//                 reserve_id: 0,
-//                 total_b_tokens: 1000_0000000,
-//                 total_shares: 1200_0000000,
-//                 b_rate: 1_100_000_000,
-//                 accrued_fees: 0,
-//             };
-//             storage::set_reserve_vault(&e, &reserve, &reserve_vault);
-
-//             withdraw(&e, reserve_vault, &samwise, 1, 0);
-//         });
-//     }
-
-//     #[test]
-//     #[should_panic(expected = "Error(Contract, #102)")]
-//     fn test_withdraw_zero_amount() {
-//         let e = Env::default();
-//         e.mock_all_auths();
-
-//         let vault_address = register_fee_vault(&e, None);
-//         let samwise = Address::generate(&e);
-//         let reserve = Address::generate(&e);
-
-//         e.as_contract(&vault_address, || {
-//             storage::set_take_rate(&e, 0_1000000);
-//             let reserve_vault = ReserveVault {
-//                 address: reserve.clone(),
-//                 reserve_id: 0,
-//                 total_b_tokens: 1000_0000000,
-//                 total_shares: 1200_0000000,
-//                 b_rate: 1_100_000_000,
-//                 accrued_fees: 0,
-//             };
-//             storage::set_reserve_vault(&e, &reserve, &reserve_vault);
-
-//             withdraw(&e, reserve_vault, &samwise, 0, 1);
-//         });
-//     }
-
-//     #[test]
-//     #[should_panic(expected = "Error(Contract, #105)")]
-//     fn test_withdraw_more_b_tokens_than_vault() {
-//         let e = Env::default();
-//         e.mock_all_auths();
-
-//         let vault_address = register_fee_vault(&e, None);
-//         let samwise = Address::generate(&e);
-//         let reserve = Address::generate(&e);
-
-//         e.as_contract(&vault_address, || {
-//             storage::set_take_rate(&e, 0_1000000);
-//             let reserve_vault = ReserveVault {
-//                 address: reserve.clone(),
-//                 reserve_id: 0,
-//                 total_b_tokens: 1000_0000000,
-//                 total_shares: 1200_0000000,
-//                 b_rate: 1_100_000_000,
-//                 accrued_fees: 0,
-//             };
-//             storage::set_reserve_vault(&e, &reserve, &reserve_vault);
-
-//             // Perform a withdraw for samwise
-//             let b_tokens = reserve_vault.total_b_tokens + 1;
-//             let underlying = b_tokens
-//                 .fixed_mul_floor(reserve_vault.b_rate, SCALAR_9)
-//                 .unwrap();
-//             storage::set_reserve_vault_shares(&e, &reserve, &samwise, reserve_vault.total_shares);
-//             withdraw(&e, reserve_vault, &samwise, underlying, b_tokens);
-//         });
-//     }
-
-//     #[test]
-//     #[should_panic(expected = "Error(Contract, #10)")]
-//     fn test_withraw_over_balance() {
-//         let e = Env::default();
-//         e.mock_all_auths();
-
-//         let vault_address = register_fee_vault(&e, None);
-//         let samwise = Address::generate(&e);
-//         let reserve = Address::generate(&e);
-
-//         e.as_contract(&vault_address, || {
-//             storage::set_take_rate(&e, 0_1000000);
-//             let reserve_vault = ReserveVault {
-//                 address: reserve.clone(),
-//                 reserve_id: 0,
-//                 total_b_tokens: 1000_0000000,
-//                 total_shares: 1200_0000000,
-//                 b_rate: 1_100_000_000,
-//                 accrued_fees: 0,
-//             };
-//             storage::set_reserve_vault(&e, &reserve, &reserve_vault);
-
-//             // Perform a withdraw for samwise
-//             let new_b_rate = 1_110_000_000;
-//             let b_tokens = 83_3333300;
-//             let underlying = b_tokens.fixed_mul_floor(new_b_rate, SCALAR_9).unwrap();
-//             let expected_share_amount = 100_0901674;
-//             storage::set_reserve_vault_shares(&e, &reserve, &samwise, expected_share_amount - 1);
-//             withdraw(&e, reserve_vault, &samwise, underlying, b_tokens);
-//         });
-//     }
-
-//     #[test]
-//     fn test_claim_fees() {
-//         let e = Env::default();
-//         e.mock_all_auths();
-
-//         let vault_address = register_fee_vault(&e, None);
-//         let reserve = Address::generate(&e);
-
-//         e.as_contract(&vault_address, || {
-//             storage::set_take_rate(&e, 0_1000000);
-//             let starting_fees = 5_0000000;
-//             let reserve_vault = ReserveVault {
-//                 address: reserve.clone(),
-//                 reserve_id: 0,
-//                 total_b_tokens: 1000_0000000,
-//                 total_shares: 1200_0000000,
-//                 b_rate: 1_100_000_000,
-//                 accrued_fees: starting_fees,
-//             };
-//             storage::set_reserve_vault(&e, &reserve, &reserve_vault);
-
-//             // Perform a deposit for samwise
-//             let new_b_rate = 1_110_000_000;
-//             let expected_b_token_fees = 0_9009009;
-//             let b_tokens = 5_5000000;
-//             let underlying = b_tokens.fixed_mul_floor(new_b_rate, SCALAR_9).unwrap();
-//             claim_fees(&e, reserve_vault, underlying, b_tokens);
-
-//             // Load the updated reserve to verify the changes
-//             let new_vault = storage::get_reserve_vault(&e, &reserve);
-//             assert_eq!(new_vault.total_shares, 1200_0000000);
-//             assert_eq!(
-//                 new_vault.total_b_tokens,
-//                 1000_0000000 - expected_b_token_fees
-//             );
-//             assert_eq!(new_vault.b_rate, new_b_rate);
-//             assert_eq!(
-//                 new_vault.accrued_fees,
-//                 starting_fees + expected_b_token_fees - b_tokens
-//             );
-//         });
-//     }
-
-//     #[test]
-//     #[should_panic(expected = "Error(Contract, #107)")]
-//     fn test_claim_fees_zero_b_tokens() {
-//         let e = Env::default();
-//         e.mock_all_auths();
-
-//         let vault_address = register_fee_vault(&e, None);
-//         let reserve = Address::generate(&e);
-
-//         e.as_contract(&vault_address, || {
-//             storage::set_take_rate(&e, 0_1000000);
-//             let reserve_vault = ReserveVault {
-//                 address: reserve.clone(),
-//                 reserve_id: 0,
-//                 total_b_tokens: 1000_0000000,
-//                 total_shares: 1200_0000000,
-//                 b_rate: 1_100_000_000,
-//                 accrued_fees: 5_0000000,
-//             };
-//             storage::set_reserve_vault(&e, &reserve, &reserve_vault);
-
-//             claim_fees(&e, reserve_vault, 1, 0);
-//         });
-//     }
-
-//     #[test]
-//     #[should_panic(expected = "Error(Contract, #102)")]
-//     fn test_claim_fees_zero_amount() {
-//         let e = Env::default();
-//         e.mock_all_auths();
-
-//         let vault_address = register_fee_vault(&e, None);
-//         let reserve = Address::generate(&e);
-
-//         e.as_contract(&vault_address, || {
-//             storage::set_take_rate(&e, 0_1000000);
-//             let reserve_vault = ReserveVault {
-//                 address: reserve.clone(),
-//                 reserve_id: 0,
-//                 total_b_tokens: 1000_0000000,
-//                 total_shares: 1200_0000000,
-//                 b_rate: 1_100_000_000,
-//                 accrued_fees: 5_0000000,
-//             };
-//             storage::set_reserve_vault(&e, &reserve, &reserve_vault);
-
-//             claim_fees(&e, reserve_vault, 0, 1);
-//         });
-//     }
-
-//     #[test]
-//     #[should_panic(expected = "Error(Contract, #103)")]
-//     fn test_claim_fees_b_tokens_more_than_accrued() {
-//         let e = Env::default();
-//         e.mock_all_auths();
-
-//         let vault_address = register_fee_vault(&e, None);
-//         let reserve = Address::generate(&e);
-
-//         e.as_contract(&vault_address, || {
-//             storage::set_take_rate(&e, 0_1000000);
-//             let reserve_vault = ReserveVault {
-//                 address: reserve.clone(),
-//                 reserve_id: 0,
-//                 total_b_tokens: 1000_0000000,
-//                 total_shares: 1200_0000000,
-//                 b_rate: 1_100_000_000,
-//                 accrued_fees: 5_0000000,
-//             };
-//             storage::set_reserve_vault(&e, &reserve, &reserve_vault);
-
-//             // Perform a deposit for samwise
-//             let new_b_rate = 1_110_000_000;
-//             let expected_b_token_fees = 0_9009009;
-//             let b_tokens = 5_0000000 + expected_b_token_fees + 1;
-//             let underlying = b_tokens.fixed_mul_floor(new_b_rate, SCALAR_9).unwrap();
-//             claim_fees(&e, reserve_vault, underlying, b_tokens);
-//         });
-//     }
-// }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::testutils::register_fee_vault;
+    use soroban_sdk::{testutils::Address as _, Address};
+
+    #[test]
+    fn test_b_tokens_to_shares_down() {
+        let e = Env::default();
+        let mut vault = ReserveVault {
+            address: Address::generate(&e),
+            reserve_id: 0,
+            b_rate: 1_000_000_000,
+            total_shares: 0,
+            total_b_tokens: 0,
+            accrued_fees: 0,
+        };
+
+        // rounds down
+        vault.total_shares = 200_0000001;
+        vault.total_b_tokens = 100_0000000;
+        let b_tokens = vault.b_tokens_to_shares_down(1_0000000);
+        assert_eq!(b_tokens, 2_0000000);
+
+        // returns amount if total_shares is 0
+        vault.total_shares = 0;
+        vault.total_b_tokens = 100_0000000;
+        let b_tokens = vault.b_tokens_to_shares_down(1_0000000);
+        assert_eq!(b_tokens, 1_0000000);
+
+        // returns amount if total_b_tokens is 0
+        vault.total_shares = 200_0000000;
+        vault.total_b_tokens = 0;
+        let b_tokens = vault.b_tokens_to_shares_down(1_0000000);
+        assert_eq!(b_tokens, 1_0000000);
+    }
+
+    #[test]
+    fn test_b_tokens_to_shares_up() {
+        let e = Env::default();
+        let mut vault = ReserveVault {
+            address: Address::generate(&e),
+            reserve_id: 0,
+            b_rate: 1_000_000_000,
+            total_shares: 0,
+            total_b_tokens: 0,
+            accrued_fees: 0,
+        };
+
+        // rounds up
+        vault.total_shares = 200_0000001;
+        vault.total_b_tokens = 100_0000000;
+        let b_tokens = vault.b_tokens_to_shares_up(1_0000000);
+        assert_eq!(b_tokens, 2_0000001);
+
+        // returns amount if total_shares is 0
+        vault.total_shares = 0;
+        vault.total_b_tokens = 100_0000000;
+        let b_tokens = vault.b_tokens_to_shares_up(1_0000000);
+        assert_eq!(b_tokens, 1_0000000);
+
+        // returns amount if total_b_tokens is 0
+        vault.total_shares = 200_0000000;
+        vault.total_b_tokens = 0;
+        let b_tokens = vault.b_tokens_to_shares_up(1_0000000);
+        assert_eq!(b_tokens, 1_0000000);
+    }
+
+    #[test]
+    fn test_shares_to_b_tokens_down() {
+        let e = Env::default();
+        let mut vault = ReserveVault {
+            address: Address::generate(&e),
+            reserve_id: 0,
+            b_rate: 1_000_000_000,
+            total_shares: 0,
+            total_b_tokens: 0,
+            accrued_fees: 0,
+        };
+
+        // rounds down
+        vault.total_shares = 200_0000001;
+        vault.total_b_tokens = 100_0000000;
+        let b_tokens = vault.shares_to_b_tokens_down(2_0000000);
+        assert_eq!(b_tokens, 0_9999999);
+
+        // returns 0 if total_b_tokens is 0
+        vault.total_shares = 200_0000000;
+        vault.total_b_tokens = 0;
+        let b_tokens = vault.shares_to_b_tokens_down(2_0000000);
+        assert_eq!(b_tokens, 0);
+    }
+
+    #[test]
+    fn test_update_rate() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let vault_address = register_fee_vault(&e, None);
+
+        e.as_contract(&vault_address, || {
+            let bombadil = Address::generate(&e);
+            storage::set_admin(&e, bombadil.clone());
+
+            storage::set_take_rate(&e, 200_0000);
+
+            let mut reserve_vault = ReserveVault {
+                address: Address::generate(&e),
+                reserve_id: 0,
+                total_b_tokens: 1000_0000000,
+                total_shares: 1200_0000000,
+                b_rate: 1_100_000_000,
+                accrued_fees: 0,
+            };
+
+            // update b_rate to 1.2
+            let expected_accrued_fee = 16_6666666;
+            reserve_vault.update_rate(&e, 120_000_0000);
+            assert_eq!(reserve_vault.accrued_fees, expected_accrued_fee);
+            assert_eq!(reserve_vault.total_shares, 1200_000_0000);
+            assert_eq!(reserve_vault.total_b_tokens, 1000_0000000 - 16_6666666);
+
+            // update b_rate to 1.5
+            let expected_accrued_fee_2 = 39_333_3333;
+            reserve_vault.update_rate(&e, 150_000_0000);
+            assert_eq!(
+                reserve_vault.accrued_fees,
+                expected_accrued_fee + expected_accrued_fee_2
+            );
+            assert_eq!(reserve_vault.total_shares, 1200_000_0000);
+            assert_eq!(
+                reserve_vault.total_b_tokens,
+                1000_0000000 - 16_6666666 - 39_333_3333
+            );
+        });
+    }
+
+    #[test]
+    fn test_update_rate_2() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let vault_address = register_fee_vault(&e, None);
+
+        e.as_contract(&vault_address, || {
+            let bombadil = Address::generate(&e);
+            storage::set_admin(&e, bombadil.clone());
+
+            storage::set_take_rate(&e, 200_0000);
+
+            let mut reserve_vault = ReserveVault {
+                address: Address::generate(&e),
+                reserve_id: 0,
+                total_b_tokens: 500_000_0000000,
+                total_shares: 500_000_0000000,
+                b_rate: 1_000_000_000,
+                accrued_fees: 0,
+            };
+
+            let expected_accrued_fee = 1050_1384549;
+            reserve_vault.update_rate(&e, 1010612834);
+            let deposit_b_tokens = 989_4986154;
+            let shares = reserve_vault.b_tokens_to_shares_down(deposit_b_tokens);
+            reserve_vault.total_b_tokens += deposit_b_tokens;
+            reserve_vault.total_shares += shares;
+            assert_eq!(
+                reserve_vault.total_b_tokens,
+                500_000_0000000 + 989_4986154 - expected_accrued_fee
+            );
+            assert_eq!(reserve_vault.total_shares, 500_000_0000000 + 991_5812105);
+
+            assert_eq!(reserve_vault.b_rate, 1_010_612_834);
+
+            assert_eq!(reserve_vault.accrued_fees, expected_accrued_fee);
+        });
+    }
+
+    #[test]
+    fn test_update_rate_no_change() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let vault_address = register_fee_vault(&e, None);
+
+        e.as_contract(&vault_address, || {
+            let bombadil = Address::generate(&e);
+            storage::set_admin(&e, bombadil.clone());
+            storage::set_take_rate(&e, 0_1000000);
+
+            let mut reserve_vault = ReserveVault {
+                address: Address::generate(&e),
+                reserve_id: 0,
+                total_b_tokens: 1000_0000000,
+                total_shares: 1200_0000000,
+                b_rate: 1_100_000_000,
+                accrued_fees: 12_0000000,
+            };
+
+            reserve_vault.update_rate(&e, 1_100_000_000);
+            // assert nothing changes
+            assert_eq!(reserve_vault.accrued_fees, reserve_vault.accrued_fees);
+            assert_eq!(reserve_vault.total_shares, reserve_vault.total_shares);
+            assert_eq!(reserve_vault.total_b_tokens, reserve_vault.total_b_tokens);
+            assert_eq!(reserve_vault.b_rate, reserve_vault.b_rate);
+        });
+    }
+
+    #[test]
+    fn test_deposit() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let vault_address = register_fee_vault(&e, None);
+        let samwise = Address::generate(&e);
+        let reserve = Address::generate(&e);
+
+        e.as_contract(&vault_address, || {
+            storage::set_take_rate(&e, 0_1000000);
+            let reserve_vault = ReserveVault {
+                address: reserve.clone(),
+                reserve_id: 0,
+                total_b_tokens: 1000_0000000,
+                total_shares: 1200_0000000,
+                b_rate: 1_100_000_000,
+                accrued_fees: 0,
+            };
+            storage::set_reserve_vault(&e, &reserve, &reserve_vault);
+
+            // Perform a deposit for samwise
+            let new_b_rate = 1_110_000_000;
+            let b_tokens = 83_3333300;
+            let expected_b_token_fees = 0_9009009;
+            let expected_share_amount = 100_0901673;
+            deposit(&e, reserve_vault, &samwise, b_tokens, new_b_rate);
+
+            // Load the updated reserve to verify the changes
+            let new_vault = storage::get_reserve_vault(&e, &reserve);
+            assert_eq!(new_vault.total_shares, 1200_0000000 + expected_share_amount);
+            assert_eq!(
+                new_vault.total_b_tokens,
+                1000_0000000 + b_tokens - expected_b_token_fees
+            );
+            assert_eq!(new_vault.b_rate, new_b_rate);
+            assert_eq!(new_vault.accrued_fees, expected_b_token_fees);
+
+            let new_balance = storage::get_reserve_vault_shares(&e, &reserve, &samwise);
+            assert_eq!(new_balance, expected_share_amount);
+        });
+    }
+
+    #[test]
+    fn test_initial_deposit() {
+        let e = Env::default();
+        e.mock_all_auths_allowing_non_root_auth();
+
+        let vault_address = register_fee_vault(&e, None);
+        let samwise = Address::generate(&e);
+        let reserve = Address::generate(&e);
+
+        e.as_contract(&vault_address, || {
+            storage::set_take_rate(&e, 0_1000000);
+            let reserve_vault = ReserveVault {
+                address: reserve.clone(),
+                reserve_id: 0,
+                total_b_tokens: 0,
+                total_shares: 0,
+                b_rate: 1_000_000_000,
+                accrued_fees: 0,
+            };
+            storage::set_reserve_vault(&e, &reserve, &reserve_vault);
+
+            // Perform a deposit for samwise
+            let new_b_rate = 1_100_000_000;
+            let b_tokens = 80_0000000;
+            deposit(&e, reserve_vault, &samwise, b_tokens, new_b_rate);
+
+            // Load the updated reserve to verify the changes
+            let expected_share_amount = b_tokens;
+            let new_vault = storage::get_reserve_vault(&e, &reserve);
+            assert_eq!(new_vault.total_shares, expected_share_amount);
+            assert_eq!(new_vault.total_b_tokens, b_tokens);
+            assert_eq!(new_vault.b_rate, new_b_rate);
+            // no fees should accrue against 0 deposits
+            assert_eq!(new_vault.accrued_fees, 0);
+
+            let new_balance = storage::get_reserve_vault_shares(&e, &reserve, &samwise);
+            assert_eq!(new_balance, expected_share_amount);
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #106)")]
+    fn test_deposit_zero_b_tokens() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let vault_address = register_fee_vault(&e, None);
+        let samwise = Address::generate(&e);
+        let reserve = Address::generate(&e);
+
+        e.as_contract(&vault_address, || {
+            storage::set_take_rate(&e, 0_1000000);
+            let reserve_vault = ReserveVault {
+                address: reserve.clone(),
+                reserve_id: 0,
+                total_b_tokens: 1000_0000000,
+                total_shares: 1200_0000000,
+                b_rate: 1_100_000_000,
+                accrued_fees: 0,
+            };
+            storage::set_reserve_vault(&e, &reserve, &reserve_vault);
+
+            deposit(&e, reserve_vault, &samwise, 0, 1_100_000_000);
+        });
+    }
+
+    #[test]
+    fn test_withdraw() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let vault_address = register_fee_vault(&e, None);
+        let samwise = Address::generate(&e);
+        let reserve = Address::generate(&e);
+
+        e.as_contract(&vault_address, || {
+            storage::set_take_rate(&e, 0_1000000);
+            let reserve_vault = ReserveVault {
+                address: reserve.clone(),
+                reserve_id: 0,
+                total_b_tokens: 1000_0000000,
+                total_shares: 1200_0000000,
+                b_rate: 1_100_000_000,
+                accrued_fees: 0,
+            };
+            storage::set_reserve_vault(&e, &reserve, &reserve_vault);
+
+            // Perform a withdraw for samwise
+            let new_b_rate = 1_110_000_000;
+            let b_tokens = 83_3333300;
+            let expected_share_amount = 100_0901674;
+            let expected_b_token_fees = 0_9009009;
+            storage::set_reserve_vault_shares(&e, &reserve, &samwise, expected_share_amount);
+            withdraw(&e, reserve_vault, &samwise, b_tokens, new_b_rate);
+
+            // Load the updated reserve to verify the changes
+            let new_vault = storage::get_reserve_vault(&e, &reserve);
+            assert_eq!(new_vault.total_shares, 1200_0000000 - expected_share_amount);
+            assert_eq!(
+                new_vault.total_b_tokens,
+                1000_0000000 - b_tokens - expected_b_token_fees
+            );
+            assert_eq!(new_vault.b_rate, new_b_rate);
+            assert_eq!(new_vault.accrued_fees, expected_b_token_fees);
+
+            let new_balance = storage::get_reserve_vault_shares(&e, &reserve, &samwise);
+            assert_eq!(new_balance, 0);
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #107)")]
+    fn test_withdraw_zero_b_tokens() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let vault_address = register_fee_vault(&e, None);
+        let samwise = Address::generate(&e);
+        let reserve = Address::generate(&e);
+
+        e.as_contract(&vault_address, || {
+            storage::set_take_rate(&e, 0_1000000);
+            let reserve_vault = ReserveVault {
+                address: reserve.clone(),
+                reserve_id: 0,
+                total_b_tokens: 1000_0000000,
+                total_shares: 1200_0000000,
+                b_rate: 1_100_000_000,
+                accrued_fees: 0,
+            };
+            storage::set_reserve_vault(&e, &reserve, &reserve_vault);
+
+            withdraw(&e, reserve_vault, &samwise, 0, 1_100_000_000);
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #105)")]
+    fn test_withdraw_more_b_tokens_than_vault() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let vault_address = register_fee_vault(&e, None);
+        let samwise = Address::generate(&e);
+        let reserve = Address::generate(&e);
+
+        e.as_contract(&vault_address, || {
+            storage::set_take_rate(&e, 0_1000000);
+            let reserve_vault = ReserveVault {
+                address: reserve.clone(),
+                reserve_id: 0,
+                total_b_tokens: 1000_0000000,
+                total_shares: 1200_0000000,
+                b_rate: 1_100_000_000,
+                accrued_fees: 0,
+            };
+            storage::set_reserve_vault(&e, &reserve, &reserve_vault);
+
+            // Perform a withdraw for samwise
+            let b_tokens = reserve_vault.total_b_tokens + 1;
+
+            storage::set_reserve_vault_shares(&e, &reserve, &samwise, reserve_vault.total_shares);
+            withdraw(&e, reserve_vault, &samwise, b_tokens, 1_100_000_000);
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #10)")]
+    fn test_withraw_over_balance() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let vault_address = register_fee_vault(&e, None);
+        let samwise = Address::generate(&e);
+        let reserve = Address::generate(&e);
+
+        e.as_contract(&vault_address, || {
+            storage::set_take_rate(&e, 0_1000000);
+            let reserve_vault = ReserveVault {
+                address: reserve.clone(),
+                reserve_id: 0,
+                total_b_tokens: 1000_0000000,
+                total_shares: 1200_0000000,
+                b_rate: 1_100_000_000,
+                accrued_fees: 0,
+            };
+            storage::set_reserve_vault(&e, &reserve, &reserve_vault);
+
+            // Perform a withdraw for samwise
+            let new_b_rate = 1_110_000_000;
+            let b_tokens = 83_3333300;
+            let expected_share_amount = 100_0901674;
+            storage::set_reserve_vault_shares(&e, &reserve, &samwise, expected_share_amount - 1);
+            withdraw(&e, reserve_vault, &samwise, b_tokens, new_b_rate);
+        });
+    }
+
+    #[test]
+    fn test_claim_fees() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let vault_address = register_fee_vault(&e, None);
+        let reserve = Address::generate(&e);
+
+        e.as_contract(&vault_address, || {
+            storage::set_take_rate(&e, 0_1000000);
+            let starting_fees = 5_0000000;
+            let reserve_vault = ReserveVault {
+                address: reserve.clone(),
+                reserve_id: 0,
+                total_b_tokens: 1000_0000000,
+                total_shares: 1200_0000000,
+                b_rate: 1_100_000_000,
+                accrued_fees: starting_fees,
+            };
+            storage::set_reserve_vault(&e, &reserve, &reserve_vault);
+
+            // Perform a deposit for samwise
+            let new_b_rate = 1_110_000_000;
+            let expected_b_token_fees = 0_9009009;
+            let b_tokens = 5_5000000;
+            claim_fees(&e, reserve_vault, b_tokens, new_b_rate);
+
+            // Load the updated reserve to verify the changes
+            let new_vault = storage::get_reserve_vault(&e, &reserve);
+            assert_eq!(new_vault.total_shares, 1200_0000000);
+            assert_eq!(
+                new_vault.total_b_tokens,
+                1000_0000000 - expected_b_token_fees
+            );
+            assert_eq!(new_vault.b_rate, new_b_rate);
+            assert_eq!(
+                new_vault.accrued_fees,
+                starting_fees + expected_b_token_fees - b_tokens
+            );
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #107)")]
+    fn test_claim_fees_zero_b_tokens() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let vault_address = register_fee_vault(&e, None);
+        let reserve = Address::generate(&e);
+
+        e.as_contract(&vault_address, || {
+            storage::set_take_rate(&e, 0_1000000);
+            let reserve_vault = ReserveVault {
+                address: reserve.clone(),
+                reserve_id: 0,
+                total_b_tokens: 1000_0000000,
+                total_shares: 1200_0000000,
+                b_rate: 1_100_000_000,
+                accrued_fees: 5_0000000,
+            };
+            storage::set_reserve_vault(&e, &reserve, &reserve_vault);
+
+            claim_fees(&e, reserve_vault, 0, 1_100_000_000);
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #103)")]
+    fn test_claim_fees_b_tokens_more_than_accrued() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let vault_address = register_fee_vault(&e, None);
+        let reserve = Address::generate(&e);
+
+        e.as_contract(&vault_address, || {
+            storage::set_take_rate(&e, 0_1000000);
+            let reserve_vault = ReserveVault {
+                address: reserve.clone(),
+                reserve_id: 0,
+                total_b_tokens: 1000_0000000,
+                total_shares: 1200_0000000,
+                b_rate: 1_100_000_000,
+                accrued_fees: 5_0000000,
+            };
+            storage::set_reserve_vault(&e, &reserve, &reserve_vault);
+
+            // Perform a deposit for samwise
+            let new_b_rate = 1_110_000_000;
+            let expected_b_token_fees = 0_9009009;
+            let b_tokens = 5_0000000 + expected_b_token_fees + 1;
+            claim_fees(&e, reserve_vault, b_tokens, new_b_rate);
+        });
+    }
+}
