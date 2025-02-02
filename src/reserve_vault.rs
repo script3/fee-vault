@@ -1043,7 +1043,10 @@ mod take_rate_tests {
 #[cfg(test)]
 mod apr_capped_tests {
     use super::*;
-    use crate::testutils::{assert_approx_eq_rel, mockpool, register_fee_vault, EnvTestUtils};
+    use crate::{
+        storage::FeeMode,
+        testutils::{assert_approx_eq_rel, mockpool, register_fee_vault, EnvTestUtils},
+    };
     use soroban_sdk::{testutils::Address as _, Address};
 
     fn update_b_rate_and_time(
@@ -1167,6 +1170,266 @@ mod apr_capped_tests {
             assert_eq!(reserve_vault.last_update_timestamp, e.ledger().timestamp());
             assert_eq!(reserve_vault.total_b_tokens, 1000_0000000 - expected_fees);
             assert_eq!(reserve_vault.total_shares, 1200_000_0000);
+        });
+    }
+
+    #[test]
+    fn test_update_rate_2() {
+        let e = Env::default();
+        e.mock_all_auths();
+        e.set_default_info();
+
+        let init_b_rate = 1_000_000_000_000;
+
+        let mock_client = &mockpool::register_mock_pool_with_b_rate(&e, init_b_rate);
+        // Fee vault with 6% apr cap
+        let vault_address = register_fee_vault(
+            &e,
+            Some((
+                Address::generate(&e),
+                mock_client.address.clone(),
+                true,
+                0_0600000,
+            )),
+        );
+
+        e.as_contract(&vault_address, || {
+            let mut reserve_vault = ReserveVault {
+                address: Address::generate(&e),
+                total_b_tokens: 1000_0000000,
+                last_update_timestamp: e.ledger().timestamp(),
+                total_shares: 1200_0000000,
+                b_rate: init_b_rate,
+                accrued_fees: 0,
+            };
+
+            // Assume no interest accrual for 1 month
+            update_b_rate_and_time(&e, mock_client, init_b_rate, (SECONDS_PER_YEAR as u64) / 12);
+            reserve_vault.update_rate(&e);
+
+            // Assert nothing changes apart from the timestamp
+            assert_eq!(reserve_vault.b_rate, init_b_rate);
+            assert_eq!(reserve_vault.accrued_fees, 0);
+            assert_eq!(reserve_vault.last_update_timestamp, e.ledger().timestamp());
+
+            // 1% yield over the next 2 months - exactly 6% yearly
+            let new_b_rate = 1_010_000_000_000;
+
+            let pre_update_underlying_value =
+                reserve_vault.b_tokens_to_underlying_down(reserve_vault.total_b_tokens);
+
+            update_b_rate_and_time(&e, mock_client, new_b_rate, (SECONDS_PER_YEAR as u64) / 6);
+
+            reserve_vault.update_rate(&e);
+
+            let post_update_underlying_value =
+                reserve_vault.b_tokens_to_underlying_down(reserve_vault.total_b_tokens);
+            // we expect that post_update_underlying_value = 1.01 * pre_update_underlying_value
+            assert_eq!(
+                post_update_underlying_value,
+                101 * pre_update_underlying_value / 100
+            );
+            // The admin still shouldn't have accrued any fees
+            assert_eq!(reserve_vault.accrued_fees, 0);
+            assert_eq!(reserve_vault.b_rate, new_b_rate);
+            assert_eq!(reserve_vault.last_update_timestamp, e.ledger().timestamp());
+
+            // 3% yield over the next 3 months, 12% yearly, so the admin should accrue some fees
+            let final_b_rate = 1_040_300_000_000;
+            update_b_rate_and_time(&e, mock_client, final_b_rate, (SECONDS_PER_YEAR as u64) / 4);
+            reserve_vault.update_rate(&e);
+
+            let final_underlying_value =
+                reserve_vault.b_tokens_to_underlying_down(reserve_vault.total_b_tokens);
+
+            // We expect that the underlying value now is (6/4)%=1.5% higher than the previous value
+            assert_eq!(
+                final_underlying_value,
+                post_update_underlying_value * 1015 / 1000
+            );
+            assert_eq!(reserve_vault.b_rate, final_b_rate);
+            assert_eq!(reserve_vault.total_shares, 1200_0000000);
+            assert_ne!(reserve_vault.accrued_fees, 0);
+            assert_eq!(
+                reserve_vault.total_b_tokens,
+                1000_0000000 - reserve_vault.accrued_fees
+            );
+
+            // Since the growth was 3%, 1.5% should be the user's yield and the rest 1.5% the accrued fees
+            let expected_accrued_fees = final_underlying_value - post_update_underlying_value;
+            let accrued_fees_value =
+                reserve_vault.b_tokens_to_underlying_down(reserve_vault.accrued_fees);
+            // there may be a small rounding error
+            assert_approx_eq_rel(accrued_fees_value, expected_accrued_fees, 0_0000001);
+        });
+    }
+
+    #[test]
+    fn update_apr_cap() {
+        let e = Env::default();
+        e.mock_all_auths();
+        e.set_default_info();
+
+        let init_b_rate = 1_000_000_000_000;
+
+        let mock_client = &mockpool::register_mock_pool_with_b_rate(&e, init_b_rate);
+        // Initial config: fee vault with 10% apr cap
+        let vault_address = register_fee_vault(
+            &e,
+            Some((
+                Address::generate(&e),
+                mock_client.address.clone(),
+                true,
+                0_1000000,
+            )),
+        );
+
+        e.as_contract(&vault_address, || {
+            let mut reserve_vault = ReserveVault {
+                address: Address::generate(&e),
+                total_b_tokens: 1000_0000000,
+                last_update_timestamp: e.ledger().timestamp(),
+                total_shares: 1200_0000000,
+                b_rate: init_b_rate,
+                accrued_fees: 0,
+            };
+
+            // Assume 5% APR over 6 months
+            let b_rate = 1_050_000_000_000;
+            let pre_update_underlying_value =
+                reserve_vault.b_tokens_to_underlying_down(reserve_vault.total_b_tokens);
+            update_b_rate_and_time(&e, mock_client, b_rate, (SECONDS_PER_YEAR as u64) / 2);
+            reserve_vault.update_rate(&e);
+            let post_update_underlying_value =
+                reserve_vault.b_tokens_to_underlying_down(reserve_vault.total_b_tokens);
+
+            // no accrued_fees, as the APR is equal to the cap
+            assert_eq!(
+                post_update_underlying_value,
+                105 * pre_update_underlying_value / 100
+            );
+            assert_eq!(reserve_vault.b_rate, b_rate);
+            assert_eq!(reserve_vault.accrued_fees, 0);
+            assert_eq!(reserve_vault.last_update_timestamp, e.ledger().timestamp());
+
+            // The admin decides to update the apr_cap to 5%, as 10% didn't yield any interest to the admin
+            storage::set_fee_mode(
+                &e,
+                FeeMode {
+                    is_apr_capped: true,
+                    value: 0_0500000,
+                },
+            );
+
+            // Assume 4% APR increase over the the next 6 months, 8% yearly
+            let new_b_rate = 1_092_000_000_000;
+
+            update_b_rate_and_time(&e, mock_client, new_b_rate, (SECONDS_PER_YEAR as u64) / 2);
+            reserve_vault.update_rate(&e);
+
+            let final_underlying_value =
+                reserve_vault.b_tokens_to_underlying_down(reserve_vault.total_b_tokens);
+
+            // The target APR is reached, so the users should get an increase of 2.5%
+            assert_eq!(
+                final_underlying_value,
+                post_update_underlying_value * 1025 / 1000
+            );
+            // The rest 1.5% should be the admin's accrued fees
+            let expected_fees = post_update_underlying_value * 15 / 1000;
+            let accrued_fees_value =
+                reserve_vault.b_tokens_to_underlying_down(reserve_vault.accrued_fees);
+            assert_approx_eq_rel(accrued_fees_value, expected_fees, 0_0000001);
+
+            assert_eq!(reserve_vault.b_rate, new_b_rate);
+            assert_eq!(reserve_vault.total_shares, 1200_0000000);
+            assert_ne!(reserve_vault.accrued_fees, 0);
+            assert_eq!(
+                reserve_vault.total_b_tokens,
+                1000_0000000 - reserve_vault.accrued_fees
+            );
+        });
+    }
+
+    #[test]
+    fn change_fee_mode() {
+        let e = Env::default();
+        e.mock_all_auths();
+        e.set_default_info();
+
+        let init_b_rate = 1_000_000_000_000;
+
+        let mock_client = &mockpool::register_mock_pool_with_b_rate(&e, init_b_rate);
+        // Initial config: fee vault with 8% apr cap
+        let vault_address = register_fee_vault(
+            &e,
+            Some((
+                Address::generate(&e),
+                mock_client.address.clone(),
+                true,
+                0_0800000,
+            )),
+        );
+
+        e.as_contract(&vault_address, || {
+            let mut reserve_vault = ReserveVault {
+                address: Address::generate(&e),
+                total_b_tokens: 1000_0000000,
+                last_update_timestamp: e.ledger().timestamp(),
+                total_shares: 1200_0000000,
+                b_rate: init_b_rate,
+                accrued_fees: 0,
+            };
+
+            // Assume 10% APR over 12 months
+            let b_rate = 1_100_000_000_000;
+            let pre_update_underlying_value =
+                reserve_vault.b_tokens_to_underlying_down(reserve_vault.total_b_tokens);
+            update_b_rate_and_time(&e, mock_client, b_rate, SECONDS_PER_YEAR as u64);
+            reserve_vault.update_rate(&e);
+            let post_update_underlying_value =
+                reserve_vault.b_tokens_to_underlying_down(reserve_vault.total_b_tokens);
+            let accrued_fees_value =
+                reserve_vault.b_tokens_to_underlying_down(reserve_vault.accrued_fees);
+            // no accrued_fees, as the APR is equal to the cap
+            assert_eq!(
+                post_update_underlying_value,
+                108 * pre_update_underlying_value / 100
+            );
+            // The rest 2% is the fees(there could be a small rounding error)
+            assert_approx_eq_rel(
+                accrued_fees_value,
+                2 * pre_update_underlying_value / 100,
+                0_0000001,
+            );
+            assert_eq!(reserve_vault.b_rate, b_rate);
+            assert_eq!(reserve_vault.last_update_timestamp, e.ledger().timestamp());
+
+            // Update the fee mode to take_rate with 20% take rate
+            storage::set_fee_mode(
+                &e,
+                FeeMode {
+                    is_apr_capped: false,
+                    value: 200_0000,
+                },
+            );
+
+            let new_b_rate = 1_200_000_000_000;
+
+            update_b_rate_and_time(&e, mock_client, new_b_rate, SECONDS_PER_YEAR as u64);
+            reserve_vault.update_rate(&e);
+
+            // 163636363 accrued fees from this accrual + the pre-existing fees
+            let expected_accrued_fee = 34_5454544;
+
+            assert_eq!(reserve_vault.accrued_fees, expected_accrued_fee);
+            assert_eq!(reserve_vault.total_shares, 1200_000_0000);
+            assert_eq!(
+                reserve_vault.total_b_tokens,
+                1000_0000000 - expected_accrued_fee
+            );
+            assert_eq!(reserve_vault.b_rate, new_b_rate);
+            assert_eq!(reserve_vault.last_update_timestamp, e.ledger().timestamp());
         });
     }
 
