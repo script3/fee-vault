@@ -79,9 +79,9 @@ impl FeeVault {
         if shares > 0 {
             let mut vault = storage::get_reserve_vault(&e, &reserve);
             let new_b_rate = pool::reserve_b_rate(&e, &reserve);
+            let b_tokens = vault.shares_to_b_tokens_down(shares);
 
-            vault.update_rate(&e, new_b_rate);
-            vault.shares_to_b_tokens_down(shares)
+            reserve_vault::b_tokens_to_underlying(&e, &mut vault, b_tokens, new_b_rate)
         } else {
             0
         }
@@ -100,9 +100,8 @@ impl FeeVault {
     pub fn get_collected_fees(e: Env, reserve: Address) -> i128 {
         let mut vault = storage::get_reserve_vault(&e, &reserve);
         let new_b_rate = pool::reserve_b_rate(&e, &reserve);
-        vault.update_rate(&e, new_b_rate);
-
-        vault.b_tokens_to_underlying_down(vault.accrued_fees)
+        let accrued_fees = vault.accrued_fees;
+        reserve_vault::b_tokens_to_underlying(&e, &mut vault, accrued_fees, new_b_rate)
     }
 
     /// Get the blend pool address

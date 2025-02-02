@@ -47,15 +47,6 @@ impl ReserveVault {
             .unwrap()
     }
 
-    /// Coverts a share amount to an underlying token amount rounding down
-    ///
-    /// ### Note
-    /// This function performs the calculations based on the last observed b_rate.
-    /// If `update_rate` hasn't been invoked in the same ledger, it may yield incorrect results.
-    pub fn shares_to_underlying_down(&self, amount: i128) -> i128 {
-        let b_tokens = self.shares_to_b_tokens_down(amount);
-        self.b_tokens_to_underlying_down(b_tokens)
-    }
     /// Coverts a b_token amount to an underlying token amount rounding down
     ///
     /// ### Note
@@ -194,6 +185,27 @@ pub fn claim_fees(e: &Env, mut vault: ReserveVault, b_tokens_amount: i128, new_r
     }
     vault.accrued_fees -= b_tokens_amount;
     storage::set_reserve_vault(e, &vault.address, &vault);
+}
+
+/// Converts a b_token amount to an underlying amount using the provided b_rate
+/// and accounting for the accrued fees.
+///
+/// ### Arguments
+/// * `vault` - The reserve vault to deposit into
+/// * `b_tokens_amount` - The amount of bTokens burnt from the vault
+/// * `new_rate` - The latest b_rate as reported by the blend pool
+pub fn b_tokens_to_underlying(
+    e: &Env,
+    vault: &mut ReserveVault,
+    b_tokens_amount: i128,
+    new_rate: i128,
+) -> i128 {
+    if b_tokens_amount <= 0 {
+        return 0;
+    }
+
+    vault.update_rate(e, new_rate);
+    vault.b_tokens_to_underlying_down(b_tokens_amount)
 }
 
 #[cfg(test)]
