@@ -195,8 +195,10 @@ impl FeeVault {
             panic_with_error!(&e, FeeVaultError::InvalidAmount);
         }
         let vault = storage::get_reserve_vault(&e, &reserve);
+        let new_b_rate = pool::reserve_b_rate(&e, &reserve);
+
         let (tokens_withdrawn, b_tokens_burnt) = pool::withdraw(&e, &vault, &to, amount);
-        reserve_vault::claim_fees(&e, vault, tokens_withdrawn, b_tokens_burnt);
+        reserve_vault::claim_fees(&e, vault, b_tokens_burnt, new_b_rate);
         FeeVaultEvents::vault_fee_claim(&e, &reserve, &admin, tokens_withdrawn, b_tokens_burnt);
         b_tokens_burnt
     }
@@ -224,8 +226,10 @@ impl FeeVault {
             panic_with_error!(&e, FeeVaultError::InvalidAmount);
         }
         let vault = storage::get_reserve_vault(&e, &reserve);
+        let new_b_rate = pool::reserve_b_rate(&e, &reserve);
+
         let b_tokens_minted = pool::supply(&e, &vault, &user, amount);
-        let new_shares = reserve_vault::deposit(&e, vault, &user, amount, b_tokens_minted);
+        let new_shares = reserve_vault::deposit(&e, vault, &user, b_tokens_minted, new_b_rate);
         FeeVaultEvents::vault_deposit(&e, &reserve, &user, amount, new_shares, b_tokens_minted);
         new_shares
     }
@@ -252,9 +256,9 @@ impl FeeVault {
             panic_with_error!(&e, FeeVaultError::InvalidAmount);
         }
         let vault = storage::get_reserve_vault(&e, &reserve);
+        let new_b_rate = pool::reserve_b_rate(&e, &reserve);
         let (tokens_withdrawn, b_tokens_burnt) = pool::withdraw(&e, &vault, &user, amount);
-        let burnt_shares =
-            reserve_vault::withdraw(&e, vault, &user, tokens_withdrawn, b_tokens_burnt);
+        let burnt_shares = reserve_vault::withdraw(&e, vault, &user, b_tokens_burnt, new_b_rate);
         FeeVaultEvents::vault_withdraw(
             &e,
             &reserve,
