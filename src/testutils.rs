@@ -12,6 +12,7 @@ use soroban_sdk::{
     vec, Address, BytesN, Env, String, Symbol,
 };
 
+// Defaults to a mock pool with a b_rate of 1_100_000_000 and a take_rate of 0_1000000.
 pub(crate) fn register_fee_vault(
     e: &Env,
     constructor_args: Option<(Address, Address, i128)>,
@@ -281,6 +282,7 @@ pub mod mockpool {
             e.storage().instance().set(&BRATE, &b_rate);
         }
 
+        /// Note: We're only interested in the `b_rate`
         pub fn get_reserve(e: Env, _reserve: Address) -> Reserve {
             Reserve {
                 asset: e.current_contract_address(),
