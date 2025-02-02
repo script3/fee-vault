@@ -64,14 +64,13 @@ impl ReserveVault {
             .fixed_div_floor(new_rate, SCALAR_9)
             .unwrap();
 
-        // if no interest was accrued we do not accrue fees
-        if admin_take_b_tokens <= 0 {
-            // Update the reserve's bRate
-            self.b_rate = new_rate;
-            return;
-        }
         // Update the reserve's bRate
         self.b_rate = new_rate;
+
+        // if no interest was accrued we do not accrue fees
+        if admin_take_b_tokens <= 0 {
+            return;
+        }
 
         self.total_b_tokens = self.total_b_tokens - admin_take_b_tokens;
         self.accrued_fees = self.accrued_fees + admin_take_b_tokens;

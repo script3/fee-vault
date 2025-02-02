@@ -12,8 +12,7 @@ use soroban_sdk::{panic_with_error, token::TokenClient, vec, Address, Env, Vec};
 /// ### Returns
 /// * `i128` - The amount of bTokens received from the supply
 pub fn supply(e: &Env, vault: &ReserveVault, from: &Address, amount: i128) -> i128 {
-    let pool_address = storage::get_pool(&e);
-    let pool = PoolClient::new(&e, &pool_address);
+    let pool = get_pool_client(&e);
 
     // Get deposit amount pre-supply
     let pre_supply = pool
@@ -50,8 +49,7 @@ pub fn supply(e: &Env, vault: &ReserveVault, from: &Address, amount: i128) -> i1
 /// ### Returns
 /// * `(i128, i128)` - (The amount of underyling tokens withdrawn, the amount of bTokens burnt)
 pub fn withdraw(e: &Env, vault: &ReserveVault, to: &Address, amount: i128) -> (i128, i128) {
-    let pool_address = storage::get_pool(&e);
-    let pool = PoolClient::new(&e, &pool_address);
+    let pool = get_pool_client(&e);
 
     // Get bTokens pre-withdraw
     let pre_supply = pool
@@ -109,7 +107,10 @@ pub fn reserve_id(e: &Env, reserve: &Address) -> u32 {
 }
 
 fn reserve_info(e: &Env, reserve: &Address) -> BlendReserve {
-    let pool_address = storage::get_pool(&e);
-    let pool = PoolClient::new(&e, &pool_address);
-    pool.get_reserve(reserve)
+    get_pool_client(&e).get_reserve(reserve)
+}
+
+#[inline]
+fn get_pool_client(e: &Env) -> PoolClient {
+    PoolClient::new(&e, &storage::get_pool(&e))
 }
