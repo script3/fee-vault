@@ -191,7 +191,7 @@ pub fn withdraw(e: &Env, mut vault: ReserveVault, user: &Address, amount: i128) 
 pub fn claim_fees(e: &Env, mut vault: ReserveVault) -> (i128, i128) {
     vault.update_rate(e);
     let b_tokens_amount = vault.accrued_fees;
-    require_positive(e, b_tokens_amount, FeeVaultError::InvalidBTokensBurnt);
+    require_positive(e, b_tokens_amount, FeeVaultError::InsufficientAccruedFees);
 
     let underlying_amount = vault.b_tokens_to_underlying_down(b_tokens_amount);
     vault.accrued_fees = 0;
@@ -870,7 +870,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #107)")]
+    #[should_panic(expected = "Error(Contract, #103)")]
     fn test_claim_fees_zero_fees_accrued() {
         let e = Env::default();
         e.mock_all_auths();
