@@ -134,11 +134,12 @@ impl FeeVault {
     /// DO NOT call this function without ensuring the reserve id and address
     /// correspond to the blend pool reserve id and address. THIS CANNOT AND IS NOT VERIFIED HERE.
     /// Doing so will cause you to be unable to support the reserve of that id in the future.
-    pub fn add_reserve_vault(e: Env, reserve_id: u32, reserve_address: Address) {
+    pub fn add_reserve_vault(e: Env, reserve_address: Address) {
         storage::get_admin(&e).require_auth();
         if storage::has_reserve_vault(&e, &reserve_address) {
             panic_with_error!(&e, FeeVaultError::ReserveAlreadyExists);
         } else {
+            let reserve_id = pool::reserve_id(&e, &reserve_address);
             storage::set_reserve_vault(
                 &e,
                 &reserve_address,

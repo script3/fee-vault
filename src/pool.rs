@@ -1,10 +1,6 @@
-use crate::{
-    errors::FeeVaultError,
-    reserve_vault::ReserveVault,
-    storage,
-};
+use crate::{errors::FeeVaultError, reserve_vault::ReserveVault, storage};
+use blend_contract_sdk::pool::{Client as PoolClient, Request, Reserve as BlendReserve};
 use soroban_sdk::{panic_with_error, token::TokenClient, vec, Address, Env, Vec};
-use blend_contract_sdk::pool::{Client as PoolClient, Request};
 
 /// Executes a supply of a specific reserve into the underlying pool on behalf of the fee vault
 ///
@@ -102,4 +98,18 @@ pub fn claim(e: &Env, reserve_token_ids: &Vec<u32>, to: &Address) -> i128 {
     let pool = PoolClient::new(&e, &pool_address);
     // Claim the emissions - they are transferred to the admin address
     pool.claim(&e.current_contract_address(), reserve_token_ids, to)
+}
+
+pub fn reserve_b_rate(e: &Env, reserve: &Address) -> i128 {
+    reserve_info(e, reserve).b_rate
+}
+
+pub fn reserve_id(e: &Env, reserve: &Address) -> u32 {
+    reserve_info(e, reserve).index
+}
+
+fn reserve_info(e: &Env, reserve: &Address) -> BlendReserve {
+    let pool_address = storage::get_pool(&e);
+    let pool = PoolClient::new(&e, &pool_address);
+    pool.get_reserve(reserve)
 }

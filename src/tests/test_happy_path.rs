@@ -47,7 +47,7 @@ fn test_happy_path() {
     let fee_vault = create_fee_vault(&e, &bombadil, &pool);
     let fee_vault_client = FeeVaultClient::new(&e, &fee_vault);
 
-    fee_vault_client.add_reserve_vault(&0, &usdc);
+    fee_vault_client.add_reserve_vault(&usdc);
     // -> verify add reserve vault auth
     assert_eq!(
         e.auths()[0],

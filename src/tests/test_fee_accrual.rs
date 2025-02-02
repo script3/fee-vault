@@ -55,8 +55,8 @@ fn test_fee_accrual() {
     let fee_vault = create_fee_vault(&e, &bombadil, &pool);
     let fee_vault_client = FeeVaultClient::new(&e, &fee_vault);
 
-    fee_vault_client.add_reserve_vault(&0, &usdc);
-    fee_vault_client.add_reserve_vault(&1, &xlm);
+    fee_vault_client.add_reserve_vault(&usdc);
+    fee_vault_client.add_reserve_vault(&xlm);
     fee_vault_client.set_take_rate(&0_1000000);
 
     /*
