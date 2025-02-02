@@ -59,8 +59,8 @@ impl FeeVault {
     /// ### Returns
     /// * `i128` - The user's position in bTokens, or 0 if they have no bTokens
     pub fn get_b_tokens(e: Env, reserve: Address, user: Address) -> i128 {
-        if storage::has_reserve_vault(&e, &reserve) {
-            let shares = storage::get_reserve_vault_shares(&e, &reserve, &user);
+        let shares = storage::get_reserve_vault_shares(&e, &reserve, &user);
+        if shares > 0 {
             let vault = storage::get_reserve_vault(&e, &reserve);
             vault.shares_to_b_tokens_down(shares)
         } else {
