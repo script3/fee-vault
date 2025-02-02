@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use crate::{constants::SCALAR_7, storage::ONE_DAY_LEDGERS, FeeVault, FeeVaultClient};
+use crate::{constants::SCALAR_7, storage::ONE_DAY_LEDGERS, FeeVault};
 use blend_contract_sdk::pool::{
     Client as PoolClient, Request, ReserveConfig, ReserveEmissionMetadata,
 };
@@ -164,7 +164,7 @@ impl EnvTestUtils for Env {
     fn jump(&self, ledgers: u32) {
         self.ledger().set(LedgerInfo {
             timestamp: self.ledger().timestamp().saturating_add(ledgers as u64 * 5),
-            protocol_version: 20,
+            protocol_version: 22,
             sequence_number: self.ledger().sequence().saturating_add(ledgers),
             network_id: Default::default(),
             base_reserve: 10,
@@ -177,7 +177,7 @@ impl EnvTestUtils for Env {
     fn jump_time(&self, seconds: u64) {
         self.ledger().set(LedgerInfo {
             timestamp: self.ledger().timestamp().saturating_add(seconds),
-            protocol_version: 20,
+            protocol_version: 22,
             sequence_number: self.ledger().sequence().saturating_add(1),
             network_id: Default::default(),
             base_reserve: 10,
@@ -190,7 +190,7 @@ impl EnvTestUtils for Env {
     fn set_default_info(&self) {
         self.ledger().set(LedgerInfo {
             timestamp: 1441065600, // Sept 1st, 2015 12:00:00 AM UTC
-            protocol_version: 20,
+            protocol_version: 22,
             sequence_number: 100,
             network_id: Default::default(),
             base_reserve: 10,
@@ -233,7 +233,7 @@ use sep_40_oracle::testutils::{Asset, MockPriceOracleClient, MockPriceOracleWASM
 
 pub fn create_mock_oracle<'a>(e: &Env) -> (Address, MockPriceOracleClient<'a>) {
     let contract_id = Address::generate(e);
-    e.register_contract_wasm(&contract_id, MockPriceOracleWASM);
+    e.register_at(&contract_id, MockPriceOracleWASM, ());
     (
         contract_id.clone(),
         MockPriceOracleClient::new(e, &contract_id),
