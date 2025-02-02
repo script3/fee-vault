@@ -82,14 +82,13 @@ impl ReserveVault {
 /// ### Arguments
 /// * `vault` - The reserve vault to deposit into
 /// * `user` - The user that deposited the tokens
-/// * `underlying_amount` - The amount of underlying tokens deposited
 /// * `b_tokens_amount` - The amount of bTokens minted to the vault
+/// * `new_rate` - The latest b_rate as reported by the blend pool
 ///
 /// ### Returns
 /// * `i128` - The amount of shares minted
 ///
 /// ### Panics
-/// * If the underlying amount is less than or equal to 0
 /// * If the bTokens amount is less than or equal to 0
 pub fn deposit(
     e: &Env,
@@ -119,14 +118,13 @@ pub fn deposit(
 /// ### Arguments
 /// * `vault` - The reserve vault to deposit into
 /// * `user` - The user withdrawing tokens
-/// * `underlying_amount` - The amount of underlying tokens withdrawn
 /// * `b_tokens_amount` - The amount of bTokens burnt from the vault
+/// * `new_rate` - The latest b_rate as reported by the blend pool
 ///
 /// ### Returns
 /// * `i128` - The amount of shares burnt
 ///
 /// ### Panics
-/// * If the underlying amount is less than or equal to 0
 /// * If the bTokens amount is less than or equal to 0
 /// * If the user does not have enough shares to withdraw
 pub fn withdraw(
@@ -162,11 +160,10 @@ pub fn withdraw(
 ///
 /// ### Arguments
 /// * `vault` - The reserve vault to deposit into
-/// * `underlying_amount` - The amount of underlying tokens withdrawn
 /// * `b_tokens_amount` - The amount of bTokens burnt from the vault
+/// * `new_rate` - The latest b_rate as reported by the blend pool
 ///
 /// ### Panics
-/// * If the underlying amount is less than or equal to 0
 /// * If the bTokens amount is less than or equal to 0
 /// * If their are insufficient fees to claim
 pub fn claim_fees(e: &Env, mut vault: ReserveVault, b_tokens_amount: i128, new_rate: i128) {

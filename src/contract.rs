@@ -22,7 +22,6 @@ impl FeeVault {
     /// * `take_rate` - The take rate for the fee vault, 7 decimal precision
     ///
     /// ### Panics
-    /// * `AlreadyInitializedError` - If the contract has already been initialized
     /// * `InvalidTakeRate` - If the take rate is not within 0 and 1_000_0000
     pub fn __constructor(e: Env, admin: Address, pool: Address, take_rate: i128) {
         admin.require_auth();
@@ -125,15 +124,10 @@ impl FeeVault {
     /// Add a new reserve vault
     ///
     /// ### Arguments
-    /// * `reserve_id` - The ID of the reserve to add,
-    /// must be the same as the blend pool reserve id
-    /// * `reserve_address` - The address of the reserve to add,
-    /// must be the same as the blend pool reserve address
+    /// * `reserve_address` - The address of the reserve to add
     ///
-    /// ### Note
-    /// DO NOT call this function without ensuring the reserve id and address
-    /// correspond to the blend pool reserve id and address. THIS CANNOT AND IS NOT VERIFIED HERE.
-    /// Doing so will cause you to be unable to support the reserve of that id in the future.
+    /// ### Panics
+    /// * `ReserveAlreadyExists` - If the reserve already has a vault
     pub fn add_reserve_vault(e: Env, reserve_address: Address) {
         storage::get_admin(&e).require_auth();
         if storage::has_reserve_vault(&e, &reserve_address) {
@@ -185,7 +179,7 @@ impl FeeVault {
     ///
     /// ### Panics
     /// * `InsufficientAccruedFees` - If more b_tokens are withdrawn than accrued via fees
-    /// * `InvalidAmount` - If the amount is less than the minimum dust amount (10000)
+    /// * `ReserveNotFound` - If the reserve does not have a vault
     pub fn claim_fees(e: Env, reserve: Address, to: Address, amount: i128) -> i128 {
         let admin = storage::get_admin(&e);
         admin.require_auth();

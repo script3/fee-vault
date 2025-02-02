@@ -98,10 +98,24 @@ pub fn claim(e: &Env, reserve_token_ids: &Vec<u32>, to: &Address) -> i128 {
     pool.claim(&e.current_contract_address(), reserve_token_ids, to)
 }
 
+/// Fetches the reserve's b_rate from the pool
+///
+/// ### Arguments
+/// * `reserve` - The reserve to fetch the b_rate for
+///
+/// ### Returns
+/// * `i128` - The b_rate of the reserve
 pub fn reserve_b_rate(e: &Env, reserve: &Address) -> i128 {
     reserve_info(e, reserve).b_rate
 }
 
+/// Fetches the reserve's id from the pool
+///
+/// ### Arguments
+/// * `reserve` - The reserve to fetch the id for
+///
+/// ### Returns
+/// * `i128` - The id of the reserve
 pub fn reserve_id(e: &Env, reserve: &Address) -> u32 {
     reserve_info(e, reserve).index
 }
