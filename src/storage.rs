@@ -6,7 +6,6 @@ use crate::{errors::FeeVaultError, reserve_vault::ReserveVault};
 
 const POOL_KEY: &str = "Pool";
 const ADMIN_KEY: &str = "Admin";
-const IS_INIT_KEY: &str = "IsInit";
 const TAKE_RATE_KEY: &str = "TakeRate";
 
 #[derive(Clone)]
@@ -41,18 +40,6 @@ pub fn extend_instance(e: &Env) {
 }
 
 /********** Instance **********/
-
-/// Check if the contract has been initialized
-pub fn get_is_init(e: &Env) -> bool {
-    e.storage().instance().has(&Symbol::new(e, IS_INIT_KEY))
-}
-
-/// Set the contract as initialized
-pub fn set_is_init(e: &Env) {
-    e.storage()
-        .instance()
-        .set::<Symbol, bool>(&Symbol::new(e, IS_INIT_KEY), &true);
-}
 
 /// Get the pool address
 pub fn get_pool(e: &Env) -> Address {

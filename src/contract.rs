@@ -24,12 +24,9 @@ impl FeeVault {
     /// ### Panics
     /// * `AlreadyInitializedError` - If the contract has already been initialized
     /// * `InvalidTakeRate` - If the take rate is not within 0 and 1_000_0000
-    pub fn initialize(e: Env, admin: Address, pool: Address, take_rate: i128) {
+    pub fn __constructor(e: Env, admin: Address, pool: Address, take_rate: i128) {
         admin.require_auth();
-        if storage::get_is_init(&e) {
-            panic_with_error!(&e, FeeVaultError::AlreadyInitializedError);
-        }
-        storage::set_is_init(&e);
+
         storage::set_admin(&e, admin);
         storage::set_pool(&e, pool);
         if take_rate < 0 || take_rate > 1_000_0000 {
