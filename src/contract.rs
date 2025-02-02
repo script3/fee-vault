@@ -140,6 +140,7 @@ impl FeeVault {
     /// ### Panics
     /// * `InvalidTakeRate` - If the take rate is not within 0 and 1_000_0000
     pub fn set_take_rate(e: Env, take_rate: i128) {
+        storage::extend_instance(&e);
         storage::get_admin(&e).require_auth();
         if take_rate < 0 || take_rate > 1_000_0000 {
             panic_with_error!(&e, FeeVaultError::InvalidTakeRate);
@@ -154,6 +155,7 @@ impl FeeVault {
     /// * `e` - The environment object
     /// * `admin` - The new admin address to set
     pub fn set_admin(e: Env, admin: Address) {
+        storage::extend_instance(&e);
         storage::get_admin(&e).require_auth();
         admin.require_auth();
         storage::set_admin(&e, admin);
@@ -168,6 +170,7 @@ impl FeeVault {
     /// ### Panics
     /// * `ReserveAlreadyExists` - If the reserve already has a vault
     pub fn add_reserve_vault(e: Env, reserve_address: Address) {
+        storage::extend_instance(&e);
         storage::get_admin(&e).require_auth();
         if storage::has_reserve_vault(&e, &reserve_address) {
             panic_with_error!(&e, FeeVaultError::ReserveAlreadyExists);
@@ -199,6 +202,7 @@ impl FeeVault {
     /// ### Returns
     /// * `i128` - The amount of blnd tokens claimed
     pub fn claim_emissions(e: Env, reserve_token_ids: Vec<u32>, to: Address) -> i128 {
+        storage::extend_instance(&e);
         storage::get_admin(&e).require_auth();
         pool::claim(&e, &reserve_token_ids, &to)
     }
@@ -217,6 +221,7 @@ impl FeeVault {
     /// * `ReserveNotFound` - If the reserve does not have a vault
     /// * `InsufficientAccruedFees` - If there are no fees to claim
     pub fn claim_fees(e: Env, reserve: Address, to: Address) -> i128 {
+        storage::extend_instance(&e);
         let admin = storage::get_admin(&e);
         admin.require_auth();
 
@@ -247,6 +252,7 @@ impl FeeVault {
     /// * `InvalidBTokensMinted` - If the amount of bTokens minted is less than or equal to 0
     /// * `InvalidSharesMinted` - If the amount of shares minted is less than or equal to 0
     pub fn deposit(e: Env, reserve: Address, user: Address, amount: i128) -> i128 {
+        storage::extend_instance(&e);
         user.require_auth();
 
         let vault = storage::get_reserve_vault(&e, &reserve);
@@ -275,6 +281,7 @@ impl FeeVault {
     /// * `InvalidBTokensBurnt` - If the amount of bTokens burnt is less than or equal to 0
     /// * `InsufficientReserves` - If the pool doesn't have enough reserves to complete the withdrawal
     pub fn withdraw(e: Env, reserve: Address, user: Address, amount: i128) -> i128 {
+        storage::extend_instance(&e);
         user.require_auth();
 
         let vault = storage::get_reserve_vault(&e, &reserve);
