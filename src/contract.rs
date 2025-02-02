@@ -4,6 +4,7 @@ use crate::{
     pool,
     reserve_vault::{self, ReserveVault},
     storage,
+    validator::require_positive,
 };
 
 use soroban_sdk::{contract, contractimpl, panic_with_error, Address, Env, Vec};
@@ -265,9 +266,10 @@ impl FeeVault {
     pub fn deposit(e: Env, reserve: Address, user: Address, amount: i128) -> i128 {
         storage::extend_instance(&e);
         user.require_auth();
+        require_positive(&e, amount, FeeVaultError::InvalidAmount);
 
-        let (b_tokens_minted, new_shares) = reserve_vault::deposit(&e, &reserve, &user, amount);
         pool::supply(&e, &reserve, &user, amount);
+        let (b_tokens_minted, new_shares) = reserve_vault::deposit(&e, &reserve, &user, amount);
 
         FeeVaultEvents::vault_deposit(&e, &reserve, &user, amount, new_shares, b_tokens_minted);
         new_shares
@@ -292,9 +294,10 @@ impl FeeVault {
     pub fn withdraw(e: Env, reserve: Address, user: Address, amount: i128) -> i128 {
         storage::extend_instance(&e);
         user.require_auth();
+        require_positive(&e, amount, FeeVaultError::InvalidAmount);
 
-        let (b_tokens_burnt, burnt_shares) = reserve_vault::withdraw(&e, &reserve, &user, amount);
         pool::withdraw(&e, &reserve, &user, amount);
+        let (b_tokens_burnt, burnt_shares) = reserve_vault::withdraw(&e, &reserve, &user, amount);
 
         FeeVaultEvents::vault_withdraw(&e, &reserve, &user, amount, burnt_shares, b_tokens_burnt);
         burnt_shares

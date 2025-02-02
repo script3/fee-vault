@@ -153,8 +153,6 @@ pub fn get_reserve_vault_updated(e: &Env, address: &Address) -> ReserveVault {
 /// ### Panics
 /// * If the underlying amount is less than or equal to 0
 pub fn deposit(e: &Env, reserve: &Address, user: &Address, amount: i128) -> (i128, i128) {
-    require_positive(e, amount, FeeVaultError::InvalidAmount);
-
     let mut vault = get_reserve_vault_updated(e, &reserve);
 
     let b_tokens_amount = vault.underlying_to_b_tokens_down(amount);
@@ -186,8 +184,6 @@ pub fn deposit(e: &Env, reserve: &Address, user: &Address, amount: i128) -> (i12
 /// * If the amount is less than or equal to 0
 /// * If the user does not have enough shares or bTokens to withdraw
 pub fn withdraw(e: &Env, reserve: &Address, user: &Address, amount: i128) -> (i128, i128) {
-    require_positive(e, amount, FeeVaultError::InvalidAmount);
-
     let mut vault = get_reserve_vault_updated(e, &reserve);
     let b_tokens_amount = vault.underlying_to_b_tokens_up(amount);
 
@@ -434,7 +430,7 @@ mod generic_tests {
     }
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #102)")]
+    #[should_panic(expected = "Error(Contract, #106)")]
     fn test_deposit_zero_amount() {
         let e = Env::default();
         e.mock_all_auths();
@@ -610,7 +606,7 @@ mod generic_tests {
     }
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #102)")]
+    #[should_panic(expected = "Error(Contract, #107)")]
     fn test_withdraw_zero_amount() {
         let e = Env::default();
         e.mock_all_auths();
