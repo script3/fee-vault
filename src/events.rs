@@ -83,4 +83,14 @@ impl FeeVaultEvents {
         );
         e.events().publish(topics, amount);
     }
+
+    /// Emitted when the fee mode is updated for a fee vault
+    ///
+    /// - topics - `["fee_mode_update"]`
+    /// - data - `[is_apr_capped: bool, value: i128]`
+    pub fn fee_mode_updated(e: &Env, is_apr_capped: bool, value: i128) {
+        let topics = (Symbol::new(&e, "fee_mode_update"),);
+
+        e.events().publish(topics, (is_apr_capped, value));
+    }
 }
