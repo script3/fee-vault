@@ -15,4 +15,5 @@ pub enum FeeVaultError {
     InsufficientReserves = 105,
     InvalidBTokensMinted = 106,
     InvalidBTokensBurnt = 107,
+    InvalidSharesMinted = 108,
 }

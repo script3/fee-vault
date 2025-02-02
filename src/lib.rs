@@ -12,6 +12,7 @@ pub mod events;
 pub mod pool;
 pub mod reserve_vault;
 pub mod storage;
+pub mod validator;
 
 pub use contract::*;
 

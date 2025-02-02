@@ -128,15 +128,16 @@ impl ReserveVault {
 /// ### Panics
 /// * If the underlying amount is less than or equal to 0
 pub fn deposit(e: &Env, mut vault: ReserveVault, user: &Address, amount: i128) -> (i128, i128) {
-    if amount <= 0 {
-        panic_with_error!(e, FeeVaultError::InvalidAmount);
-    }
+    require_positive(e, amount, FeeVaultError::InvalidAmount);
 
     vault.update_rate(e);
     let b_tokens_amount = vault.underlying_to_b_tokens_down(amount);
+    require_positive(e, b_tokens_amount, FeeVaultError::InvalidBTokensMinted);
 
     let mut user_shares = storage::get_reserve_vault_shares(e, &vault.address, user);
     let share_amount = vault.b_tokens_to_shares_down(b_tokens_amount);
+    require_positive(e, share_amount, FeeVaultError::InvalidSharesMinted);
+
     vault.total_shares += share_amount;
     vault.total_b_tokens += b_tokens_amount;
     user_shares += share_amount;
@@ -159,9 +160,8 @@ pub fn deposit(e: &Env, mut vault: ReserveVault, user: &Address, amount: i128) -
 /// * If the amount is less than or equal to 0
 /// * If the user does not have enough shares or bTokens to withdraw
 pub fn withdraw(e: &Env, mut vault: ReserveVault, user: &Address, amount: i128) -> (i128, i128) {
-    if amount <= 0 {
-        panic_with_error!(e, FeeVaultError::InvalidAmount);
-    }
+    require_positive(e, amount, FeeVaultError::InvalidAmount);
+
     vault.update_rate(e);
     let b_tokens_amount = vault.underlying_to_b_tokens_up(amount);
 
@@ -191,9 +191,7 @@ pub fn withdraw(e: &Env, mut vault: ReserveVault, user: &Address, amount: i128) 
 pub fn claim_fees(e: &Env, mut vault: ReserveVault) -> (i128, i128) {
     vault.update_rate(e);
     let b_tokens_amount = vault.accrued_fees;
-    if b_tokens_amount <= 0 {
-        panic_with_error!(e, FeeVaultError::InvalidBTokensBurnt);
-    }
+    require_positive(e, b_tokens_amount, FeeVaultError::InvalidBTokensBurnt);
 
     let underlying_amount = vault.b_tokens_to_underlying_down(b_tokens_amount);
     vault.accrued_fees = 0;

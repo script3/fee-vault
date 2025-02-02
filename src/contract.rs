@@ -4,7 +4,6 @@ use crate::{
     pool,
     reserve_vault::{self, ReserveVault},
     storage,
-    validator::require_positive,
 };
 
 use soroban_sdk::{contract, contractimpl, panic_with_error, Address, Env, Vec};
