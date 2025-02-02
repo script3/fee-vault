@@ -166,9 +166,8 @@ fn test_get_b_tokens() {
     assert_eq!(vault_client.get_b_tokens(&reserve, &frodo), 900_0000000);
 
     // b_rate is increased by 10%. `take_rate` is 10%
-    mock_client.set_b_rate(&1_100_000_000_000);
-    // Jump some seconds forward to make sure the update_rate doesn't return early
-    e.jump_time(10);
+    mockpool::set_b_rate(&e, &mock_client, 1_100_000_000_000);
+
     let expected_accrued_fees = 90909090_i128;
     let expected_total_b_tokens = 1000_0000000 - expected_accrued_fees;
 
