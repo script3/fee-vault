@@ -67,7 +67,7 @@ impl ReserveVault {
     }
 
     /// Updates the reserve's bRate and accrues fees to the admin in accordance with the portion of interest they earned
-    pub fn update_rate(&mut self, e: &Env) {
+    fn update_rate(&mut self, e: &Env) {
         let now = e.ledger().timestamp();
         if now == self.last_update_timestamp {
             return;
@@ -112,10 +112,26 @@ impl ReserveVault {
     }
 }
 
+/// Get the reserve vault from storage and update the bRate
+///
+/// ### Arguments
+/// * `address` - The reserve address
+///
+/// ### Returns
+/// * `ReserveVault` - The updated reserve vault
+///
+/// ### Panics
+/// * `ReserveNotFound` - If the reserve does not exist
+pub fn get_reserve_vault_updated(e: &Env, address: &Address) -> ReserveVault {
+    let mut vault = storage::get_reserve_vault(e, address);
+    vault.update_rate(e);
+    vault
+}
+
 /// Deposit into the reserve vault. Does not perform the call to the pool to deposit the tokens.
 ///
 /// ### Arguments
-/// * `vault` - The reserve vault to deposit into
+/// * `reserve` - The reserve address
 /// * `user` - The user that deposited the tokens
 /// * `amount` - The amount of underlying deposited
 ///
@@ -124,10 +140,11 @@ impl ReserveVault {
 ///
 /// ### Panics
 /// * If the underlying amount is less than or equal to 0
-pub fn deposit(e: &Env, mut vault: ReserveVault, user: &Address, amount: i128) -> (i128, i128) {
+pub fn deposit(e: &Env, reserve: &Address, user: &Address, amount: i128) -> (i128, i128) {
     require_positive(e, amount, FeeVaultError::InvalidAmount);
 
-    vault.update_rate(e);
+    let mut vault = get_reserve_vault_updated(e, &reserve);
+
     let b_tokens_amount = vault.underlying_to_b_tokens_down(amount);
     require_positive(e, b_tokens_amount, FeeVaultError::InvalidBTokensMinted);
 
@@ -146,7 +163,7 @@ pub fn deposit(e: &Env, mut vault: ReserveVault, user: &Address, amount: i128) -
 /// Withdraw from the reserve vault. Does not perform the call to the pool to withdraw the tokens.
 ///
 /// ### Arguments
-/// * `vault` - The reserve vault to deposit into
+/// * `reserve` - The reserve address
 /// * `user` - The user withdrawing tokens
 /// * `amount` - The amount of underlying amount withdrawn from the vault
 ///
@@ -156,10 +173,10 @@ pub fn deposit(e: &Env, mut vault: ReserveVault, user: &Address, amount: i128) -
 /// ### Panics
 /// * If the amount is less than or equal to 0
 /// * If the user does not have enough shares or bTokens to withdraw
-pub fn withdraw(e: &Env, mut vault: ReserveVault, user: &Address, amount: i128) -> (i128, i128) {
+pub fn withdraw(e: &Env, reserve: &Address, user: &Address, amount: i128) -> (i128, i128) {
     require_positive(e, amount, FeeVaultError::InvalidAmount);
 
-    vault.update_rate(e);
+    let mut vault = get_reserve_vault_updated(e, &reserve);
     let b_tokens_amount = vault.underlying_to_b_tokens_up(amount);
 
     let mut user_shares = storage::get_reserve_vault_shares(e, &vault.address, user);
@@ -183,12 +200,13 @@ pub fn withdraw(e: &Env, mut vault: ReserveVault, user: &Address, amount: i128) 
 /// Claim fees from the reserve vault. Does not perform the call to the pool to claim the fees.
 ///
 /// ### Arguments
-/// * `vault` - The reserve vault to deposit into
+/// * `reserve` - The reserve address
+
 ///
 /// ### Panics
 /// * If the accrued bToken amount is less than or equal to 0
-pub fn claim_fees(e: &Env, mut vault: ReserveVault) -> (i128, i128) {
-    vault.update_rate(e);
+pub fn claim_fees(e: &Env, reserve: &Address) -> (i128, i128) {
+    let mut vault = get_reserve_vault_updated(e, &reserve);
     let b_tokens_amount = vault.accrued_fees;
     require_positive(e, b_tokens_amount, FeeVaultError::InsufficientAccruedFees);
 

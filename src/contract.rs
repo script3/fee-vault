@@ -59,8 +59,7 @@ impl FeeVault {
     pub fn get_b_tokens(e: Env, reserve: Address, user: Address) -> i128 {
         let shares = storage::get_reserve_vault_shares(&e, &reserve, &user);
         if shares > 0 {
-            let mut vault = storage::get_reserve_vault(&e, &reserve);
-            vault.update_rate(&e);
+            let vault = reserve_vault::get_reserve_vault_updated(&e, &reserve);
             vault.shares_to_b_tokens_down(shares)
         } else {
             0
@@ -78,8 +77,7 @@ impl FeeVault {
     pub fn get_underlying_tokens(e: Env, reserve: Address, user: Address) -> i128 {
         let shares = storage::get_reserve_vault_shares(&e, &reserve, &user);
         if shares > 0 {
-            let mut vault = storage::get_reserve_vault(&e, &reserve);
-            vault.update_rate(&e);
+            let vault = reserve_vault::get_reserve_vault_updated(&e, &reserve);
             let b_tokens = vault.shares_to_b_tokens_down(shares);
             vault.b_tokens_to_underlying_down(b_tokens)
         } else {
@@ -96,8 +94,7 @@ impl FeeVault {
     /// * `i128` - The admin's accrued fees in underlying tokens, or 0 if the reserve does not exist
     pub fn get_collected_fees(e: Env, reserve: Address) -> i128 {
         if storage::has_reserve_vault(&e, &reserve) {
-            let mut vault = storage::get_reserve_vault(&e, &reserve);
-            vault.update_rate(&e);
+            let vault = reserve_vault::get_reserve_vault_updated(&e, &reserve);
             vault.b_tokens_to_underlying_down(vault.accrued_fees)
         } else {
             0
@@ -123,9 +120,7 @@ impl FeeVault {
     /// ### Panics
     /// * `ReserveNotFound` - If the reserve does not exist
     pub fn get_reserve_vault(e: Env, reserve: Address) -> ReserveVault {
-        let mut vault = storage::get_reserve_vault(&e, &reserve);
-        vault.update_rate(&e);
-        vault
+        reserve_vault::get_reserve_vault_updated(&e, &reserve)
     }
 
     //********** Read-Write Admin Only ***********//
@@ -226,9 +221,7 @@ impl FeeVault {
         let admin = storage::get_admin(&e);
         admin.require_auth();
 
-        let vault = storage::get_reserve_vault(&e, &reserve);
-
-        let (b_tokens_burnt, amount) = reserve_vault::claim_fees(&e, vault);
+        let (b_tokens_burnt, amount) = reserve_vault::claim_fees(&e, &reserve);
         pool::withdraw(&e, &reserve, &to, amount);
 
         FeeVaultEvents::vault_fee_claim(&e, &reserve, &admin, amount, b_tokens_burnt);
@@ -256,9 +249,7 @@ impl FeeVault {
         storage::extend_instance(&e);
         user.require_auth();
 
-        let vault = storage::get_reserve_vault(&e, &reserve);
-
-        let (b_tokens_minted, new_shares) = reserve_vault::deposit(&e, vault, &user, amount);
+        let (b_tokens_minted, new_shares) = reserve_vault::deposit(&e, &reserve, &user, amount);
         pool::supply(&e, &reserve, &user, amount);
 
         FeeVaultEvents::vault_deposit(&e, &reserve, &user, amount, new_shares, b_tokens_minted);
@@ -285,8 +276,7 @@ impl FeeVault {
         storage::extend_instance(&e);
         user.require_auth();
 
-        let vault = storage::get_reserve_vault(&e, &reserve);
-        let (b_tokens_burnt, burnt_shares) = reserve_vault::withdraw(&e, vault, &user, amount);
+        let (b_tokens_burnt, burnt_shares) = reserve_vault::withdraw(&e, &reserve, &user, amount);
         pool::withdraw(&e, &reserve, &user, amount);
 
         FeeVaultEvents::vault_withdraw(&e, &reserve, &user, amount, burnt_shares, b_tokens_burnt);
