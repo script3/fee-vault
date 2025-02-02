@@ -295,7 +295,7 @@ mod tests {
         let e = Env::default();
         e.mock_all_auths();
 
-        let vault_address = register_fee_vault(&e);
+        let vault_address = register_fee_vault(&e, None);
 
         e.as_contract(&vault_address, || {
             let bombadil = Address::generate(&e);
@@ -339,7 +339,7 @@ mod tests {
         let e = Env::default();
         e.mock_all_auths();
 
-        let vault_address = register_fee_vault(&e);
+        let vault_address = register_fee_vault(&e, None);
 
         e.as_contract(&vault_address, || {
             let bombadil = Address::generate(&e);
@@ -379,7 +379,7 @@ mod tests {
         let e = Env::default();
         e.mock_all_auths();
 
-        let vault_address = register_fee_vault(&e);
+        let vault_address = register_fee_vault(&e, None);
 
         e.as_contract(&vault_address, || {
             let bombadil = Address::generate(&e);
@@ -411,7 +411,7 @@ mod tests {
         let e = Env::default();
         e.mock_all_auths();
 
-        let vault_address = register_fee_vault(&e);
+        let vault_address = register_fee_vault(&e, None);
         let samwise = Address::generate(&e);
         let reserve = Address::generate(&e);
 
@@ -455,7 +455,7 @@ mod tests {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
 
-        let vault_address = register_fee_vault(&e);
+        let vault_address = register_fee_vault(&e, None);
         let samwise = Address::generate(&e);
         let reserve = Address::generate(&e);
 
@@ -497,7 +497,7 @@ mod tests {
         let e = Env::default();
         e.mock_all_auths();
 
-        let vault_address = register_fee_vault(&e);
+        let vault_address = register_fee_vault(&e, None);
         let samwise = Address::generate(&e);
         let reserve = Address::generate(&e);
 
@@ -523,7 +523,7 @@ mod tests {
         let e = Env::default();
         e.mock_all_auths();
 
-        let vault_address = register_fee_vault(&e);
+        let vault_address = register_fee_vault(&e, None);
         let samwise = Address::generate(&e);
         let reserve = Address::generate(&e);
 
@@ -548,7 +548,7 @@ mod tests {
         let e = Env::default();
         e.mock_all_auths();
 
-        let vault_address = register_fee_vault(&e);
+        let vault_address = register_fee_vault(&e, None);
         let samwise = Address::generate(&e);
         let reserve = Address::generate(&e);
 
@@ -594,7 +594,7 @@ mod tests {
         let e = Env::default();
         e.mock_all_auths();
 
-        let vault_address = register_fee_vault(&e);
+        let vault_address = register_fee_vault(&e, None);
         let samwise = Address::generate(&e);
         let reserve = Address::generate(&e);
 
@@ -620,7 +620,7 @@ mod tests {
         let e = Env::default();
         e.mock_all_auths();
 
-        let vault_address = register_fee_vault(&e);
+        let vault_address = register_fee_vault(&e, None);
         let samwise = Address::generate(&e);
         let reserve = Address::generate(&e);
 
@@ -646,7 +646,7 @@ mod tests {
         let e = Env::default();
         e.mock_all_auths();
 
-        let vault_address = register_fee_vault(&e);
+        let vault_address = register_fee_vault(&e, None);
         let samwise = Address::generate(&e);
         let reserve = Address::generate(&e);
 
@@ -678,7 +678,7 @@ mod tests {
         let e = Env::default();
         e.mock_all_auths();
 
-        let vault_address = register_fee_vault(&e);
+        let vault_address = register_fee_vault(&e, None);
         let samwise = Address::generate(&e);
         let reserve = Address::generate(&e);
 
@@ -709,7 +709,7 @@ mod tests {
         let e = Env::default();
         e.mock_all_auths();
 
-        let vault_address = register_fee_vault(&e);
+        let vault_address = register_fee_vault(&e, None);
         let reserve = Address::generate(&e);
 
         e.as_contract(&vault_address, || {
@@ -753,7 +753,7 @@ mod tests {
         let e = Env::default();
         e.mock_all_auths();
 
-        let vault_address = register_fee_vault(&e);
+        let vault_address = register_fee_vault(&e, None);
         let reserve = Address::generate(&e);
 
         e.as_contract(&vault_address, || {
@@ -778,7 +778,7 @@ mod tests {
         let e = Env::default();
         e.mock_all_auths();
 
-        let vault_address = register_fee_vault(&e);
+        let vault_address = register_fee_vault(&e, None);
         let reserve = Address::generate(&e);
 
         e.as_contract(&vault_address, || {
@@ -803,7 +803,7 @@ mod tests {
         let e = Env::default();
         e.mock_all_auths();
 
-        let vault_address = register_fee_vault(&e);
+        let vault_address = register_fee_vault(&e, None);
         let reserve = Address::generate(&e);
 
         e.as_contract(&vault_address, || {

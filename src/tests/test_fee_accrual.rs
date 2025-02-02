@@ -4,8 +4,8 @@ use crate::constants::{SCALAR_7, SCALAR_9};
 use crate::storage::ONE_DAY_LEDGERS;
 use crate::testutils::{assert_approx_eq_rel, create_blend_pool, create_fee_vault, EnvTestUtils};
 use crate::FeeVaultClient;
-use blend_contract_sdk::testutils::BlendFixture;
 use blend_contract_sdk::pool::{Client as PoolClient, Request};
+use blend_contract_sdk::testutils::BlendFixture;
 use sep_41_token::testutils::MockTokenClient;
 use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::testutils::{Address as _, Ledger, LedgerInfo};
@@ -14,7 +14,7 @@ use soroban_sdk::{vec, Address, Env};
 #[test]
 fn test_fee_accrual() {
     let e = Env::default();
-    e.budget().reset_unlimited();
+    e.cost_estimate().budget().reset_unlimited();
     e.mock_all_auths();
     e.ledger().set(LedgerInfo {
         timestamp: 1441065600, // Sept 1st, 2015 12:00:00 AM UTC
@@ -33,9 +33,15 @@ fn test_fee_accrual() {
     let samwise = Address::generate(&e);
     let merry = Address::generate(&e);
 
-    let blnd = e.register_stellar_asset_contract(bombadil.clone());
-    let usdc = e.register_stellar_asset_contract(bombadil.clone());
-    let xlm = e.register_stellar_asset_contract(bombadil.clone());
+    let blnd = e
+        .register_stellar_asset_contract_v2(bombadil.clone())
+        .address();
+    let usdc = e
+        .register_stellar_asset_contract_v2(bombadil.clone())
+        .address();
+    let xlm = e
+        .register_stellar_asset_contract_v2(bombadil.clone())
+        .address();
     let usdc_client = MockTokenClient::new(&e, &usdc);
     let xlm_client = MockTokenClient::new(&e, &xlm);
 

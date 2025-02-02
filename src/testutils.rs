@@ -1,12 +1,10 @@
 #![cfg(test)]
 
-use crate::{
-    constants::SCALAR_7,
-    storage::ONE_DAY_LEDGERS,
-    FeeVault, FeeVaultClient,
+use crate::{constants::SCALAR_7, storage::ONE_DAY_LEDGERS, FeeVault, FeeVaultClient};
+use blend_contract_sdk::pool::{
+    Client as PoolClient, Request, ReserveConfig, ReserveEmissionMetadata,
 };
 use blend_contract_sdk::testutils::BlendFixture;
-use blend_contract_sdk::pool::{Client as PoolClient, Request, ReserveConfig, ReserveEmissionMetadata};
 use sep_41_token::testutils::MockTokenClient;
 use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::{
@@ -14,8 +12,14 @@ use soroban_sdk::{
     vec, Address, BytesN, Env, String, Symbol,
 };
 
-pub(crate) fn register_fee_vault(e: &Env) -> Address {
-    e.register_contract(None, FeeVault {})
+pub(crate) fn register_fee_vault(
+    e: &Env,
+    constructor_args: Option<(Address, Address, i128)>,
+) -> Address {
+    e.register(
+        FeeVault {},
+        constructor_args.unwrap_or((Address::generate(e), Address::generate(e), 100_0000)),
+    )
 }
 
 pub(crate) fn create_blend_pool(
@@ -139,10 +143,7 @@ pub(crate) fn create_blend_pool(
 
 /// Create a fee vault
 pub(crate) fn create_fee_vault(e: &Env, admin: &Address, pool: &Address) -> Address {
-    let address = register_fee_vault(e);
-    let client = FeeVaultClient::new(e, &address);
-    client.initialize(&admin, &pool, &100_0000);
-    address
+    register_fee_vault(e, Some((admin.clone(), pool.clone(), 100_0000)))
 }
 
 pub trait EnvTestUtils {

@@ -4,8 +4,8 @@ use crate::constants::{MIN_DUST, SCALAR_7};
 use crate::storage::ONE_DAY_LEDGERS;
 use crate::testutils::{create_blend_pool, create_fee_vault, EnvTestUtils};
 use crate::FeeVaultClient;
-use blend_contract_sdk::testutils::BlendFixture;
 use blend_contract_sdk::pool::{Client as PoolClient, Request};
+use blend_contract_sdk::testutils::BlendFixture;
 use sep_41_token::testutils::MockTokenClient;
 use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::testutils::{Address as _, AuthorizedFunction, AuthorizedInvocation};
@@ -14,7 +14,7 @@ use soroban_sdk::{vec, Address, Env, Error, IntoVal, Symbol};
 #[test]
 fn test_happy_path() {
     let e = Env::default();
-    e.budget().reset_unlimited();
+    e.cost_estimate().budget().reset_unlimited();
     e.mock_all_auths();
     e.set_default_info();
 
@@ -24,9 +24,15 @@ fn test_happy_path() {
     let samwise = Address::generate(&e);
     let merry = Address::generate(&e);
 
-    let blnd = e.register_stellar_asset_contract(bombadil.clone());
-    let usdc = e.register_stellar_asset_contract(bombadil.clone());
-    let xlm = e.register_stellar_asset_contract(bombadil.clone());
+    let blnd = e
+        .register_stellar_asset_contract_v2(bombadil.clone())
+        .address();
+    let usdc = e
+        .register_stellar_asset_contract_v2(bombadil.clone())
+        .address();
+    let xlm = e
+        .register_stellar_asset_contract_v2(bombadil.clone())
+        .address();
     let blnd_client = MockTokenClient::new(&e, &blnd);
     let usdc_client = MockTokenClient::new(&e, &usdc);
     let xlm_client = MockTokenClient::new(&e, &xlm);
