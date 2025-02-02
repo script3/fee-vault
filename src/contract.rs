@@ -93,14 +93,15 @@ impl FeeVault {
     /// * `reserve` - The asset address of the reserve
     ///
     /// ### Returns
-    /// * `i128` - The user's position in underlying tokens, or 0 if they have no bTokens
-    ///
-    /// ### Panics
-    /// * `ReserveNotFound` - If the reserve does not exist
+    /// * `i128` - The admin's accrued fees in underlying tokens, or 0 if the reserve does not exist
     pub fn get_collected_fees(e: Env, reserve: Address) -> i128 {
-        let mut vault = storage::get_reserve_vault(&e, &reserve);
-        vault.update_rate(&e);
-        vault.b_tokens_to_underlying_down(vault.accrued_fees)
+        if storage::has_reserve_vault(&e, &reserve) {
+            let mut vault = storage::get_reserve_vault(&e, &reserve);
+            vault.update_rate(&e);
+            vault.b_tokens_to_underlying_down(vault.accrued_fees)
+        } else {
+            0
+        }
     }
 
     /// Get the blend pool address
