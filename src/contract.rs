@@ -66,6 +66,45 @@ impl FeeVault {
         }
     }
 
+    /// Fetch a user's position in underlying tokens
+    ///
+    /// ### Arguments
+    /// * `reserve` - The asset address of the reserve
+    /// * `user` - The address of the user
+    ///
+    /// ### Returns
+    /// * `i128` - The user's position in underlying tokens, or 0 if they have no bTokens
+    pub fn get_underlying_tokens(e: Env, reserve: Address, user: Address) -> i128 {
+        let shares = storage::get_reserve_vault_shares(&e, &reserve, &user);
+        if shares > 0 {
+            let mut vault = storage::get_reserve_vault(&e, &reserve);
+            let new_b_rate = pool::reserve_b_rate(&e, &reserve);
+
+            vault.update_rate(&e, new_b_rate);
+            vault.shares_to_b_tokens_down(shares)
+        } else {
+            0
+        }
+    }
+
+    /// Fetch the accrued fees in underlying tokens
+    ///
+    /// ### Arguments
+    /// * `reserve` - The asset address of the reserve
+    ///
+    /// ### Returns
+    /// * `i128` - The user's position in underlying tokens, or 0 if they have no bTokens
+    ///
+    /// ### Panics
+    /// * `ReserveNotFound` - If the reserve does not exist
+    pub fn get_collected_fees(e: Env, reserve: Address) -> i128 {
+        let mut vault = storage::get_reserve_vault(&e, &reserve);
+        let new_b_rate = pool::reserve_b_rate(&e, &reserve);
+        vault.update_rate(&e, new_b_rate);
+
+        vault.b_tokens_to_underlying_down(vault.accrued_fees)
+    }
+
     /// Get the blend pool address
     ///
     /// ### Returns
