@@ -5,15 +5,7 @@ use soroban_sdk::contracterror;
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub enum FeeVaultError {
     // Default errors to align with built-in contract
-    InternalError = 1,
-    AlreadyInitializedError = 3,
-
-    UnauthorizedError = 4,
-
-    NegativeAmountError = 8,
-    AllowanceError = 9,
     BalanceError = 10,
-    OverflowError = 12,
 
     ReserveNotFound = 100,
     ReserveAlreadyExists = 101,
