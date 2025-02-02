@@ -59,7 +59,8 @@ impl FeeVault {
     pub fn get_b_tokens(e: Env, reserve: Address, user: Address) -> i128 {
         let shares = storage::get_reserve_vault_shares(&e, &reserve, &user);
         if shares > 0 {
-            let vault = storage::get_reserve_vault(&e, &reserve);
+            let mut vault = storage::get_reserve_vault(&e, &reserve);
+            vault.update_rate(&e);
             vault.shares_to_b_tokens_down(shares)
         } else {
             0
@@ -78,9 +79,9 @@ impl FeeVault {
         let shares = storage::get_reserve_vault_shares(&e, &reserve, &user);
         if shares > 0 {
             let mut vault = storage::get_reserve_vault(&e, &reserve);
+            vault.update_rate(&e);
             let b_tokens = vault.shares_to_b_tokens_down(shares);
-
-            reserve_vault::b_tokens_to_underlying(&e, &mut vault, b_tokens)
+            vault.b_tokens_to_underlying_down(b_tokens)
         } else {
             0
         }
@@ -99,7 +100,7 @@ impl FeeVault {
     pub fn get_collected_fees(e: Env, reserve: Address) -> i128 {
         let mut vault = storage::get_reserve_vault(&e, &reserve);
         let accrued_fees = vault.accrued_fees;
-        reserve_vault::b_tokens_to_underlying(&e, &mut vault, accrued_fees)
+        vault.b_tokens_to_underlying_down(b_tokens)
     }
 
     /// Get the blend pool address
@@ -205,7 +206,6 @@ impl FeeVault {
     /// ### Arguments
     /// * `reserve` - The address of the reserve to claim fees for
     /// * `to` - The address to send the fees to
-    /// * `amount` - The amount of fees to claim
     ///
     /// ### Returns
     /// * `b_tokens` - The number of b_tokens burnt

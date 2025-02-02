@@ -9,10 +9,8 @@ use soroban_sdk::{vec, Address, Env, Vec};
 /// * `from` - The address of the user
 /// * `amount` - The amount of tokens to deposit
 pub fn supply(e: &Env, reserve: &Address, from: &Address, amount: i128) {
-    let pool = get_pool_client(&e);
-
     // Execute the deposit - the tokens are transferred from the user to the pool
-    pool.submit(
+    get_pool_client(&e).submit(
         &e.current_contract_address(),
         &from,
         &from,
@@ -34,10 +32,8 @@ pub fn supply(e: &Env, reserve: &Address, from: &Address, amount: i128) {
 /// * `to` - The destination of the withdrawal
 /// * `amount` - The amount of tokens to withdraw
 pub fn withdraw(e: &Env, reserve: &Address, to: &Address, amount: i128) {
-    let pool = get_pool_client(&e);
-
     // Execute the withdrawal - the tokens are transferred from the pool to the user
-    pool.submit(
+    get_pool_client(&e).submit(
         &e.current_contract_address(),
         &e.current_contract_address(),
         &to,
@@ -61,9 +57,8 @@ pub fn withdraw(e: &Env, reserve: &Address, to: &Address, amount: i128) {
 /// ### Returns
 /// * `i128` - The amount of emissions claimed
 pub fn claim(e: &Env, reserve_token_ids: &Vec<u32>, to: &Address) -> i128 {
-    let pool = get_pool_client(e);
     // Claim the emissions - they are transferred to the admin address
-    pool.claim(&e.current_contract_address(), reserve_token_ids, to)
+    get_pool_client(&e).claim(&e.current_contract_address(), reserve_token_ids, to)
 }
 
 /// Fetches the reserve's b_rate from the pool

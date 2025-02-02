@@ -86,7 +86,7 @@ impl ReserveVault {
     }
 
     /// Updates the reserve's bRate and accrues fees to the admin in accordance with the portion of interest they earned
-    fn update_rate(&mut self, e: &Env) {
+    pub fn update_rate(&mut self, e: &Env) {
         let new_rate = pool::reserve_b_rate(e, &self.address);
         if new_rate == self.b_rate {
             return;
@@ -197,22 +197,6 @@ pub fn claim_fees(e: &Env, mut vault: ReserveVault) -> (i128, i128) {
     vault.accrued_fees = 0;
     storage::set_reserve_vault(e, &vault.address, &vault);
     (b_tokens_amount, underlying_amount)
-}
-
-/// Converts a b_token amount to an underlying amount using the provided b_rate
-/// and accounting for the accrued fees.
-///
-/// ### Arguments
-/// * `vault` - The reserve vault to deposit into
-/// * `b_tokens_amount` - The amount of bTokens burnt from the vault
-/// * `new_rate` - The latest b_rate as reported by the blend pool
-pub fn b_tokens_to_underlying(e: &Env, vault: &mut ReserveVault, b_tokens_amount: i128) -> i128 {
-    if b_tokens_amount <= 0 {
-        return 0;
-    }
-
-    vault.update_rate(e);
-    vault.b_tokens_to_underlying_down(b_tokens_amount)
 }
 
 /// Note: Test suite is temporarily broken. Will be updated with full blend integration
