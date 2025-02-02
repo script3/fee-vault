@@ -193,12 +193,12 @@ pub fn withdraw(e: &Env, reserve: &Address, user: &Address, amount: i128) -> (i1
     let share_amount = vault.b_tokens_to_shares_up(b_tokens_amount);
     require_positive(e, share_amount, FeeVaultError::InvalidBTokensBurnt);
 
-    if share_amount > user_shares {
-        panic_with_error!(e, FeeVaultError::BalanceError);
-    }
-
     if vault.total_shares < share_amount || vault.total_b_tokens < b_tokens_amount {
         panic_with_error!(e, FeeVaultError::InsufficientReserves);
+    }
+
+    if share_amount > user_shares {
+        panic_with_error!(e, FeeVaultError::BalanceError);
     }
     vault.total_shares -= share_amount;
     vault.total_b_tokens -= b_tokens_amount;
@@ -635,7 +635,7 @@ mod generic_tests {
     }
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #10)")]
+    #[should_panic(expected = "Error(Contract, #105)")]
     fn test_withdraw_more_b_tokens_than_vault() {
         let e = Env::default();
         e.mock_all_auths();
