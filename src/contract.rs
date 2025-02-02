@@ -99,8 +99,8 @@ impl FeeVault {
     /// * `ReserveNotFound` - If the reserve does not exist
     pub fn get_collected_fees(e: Env, reserve: Address) -> i128 {
         let mut vault = storage::get_reserve_vault(&e, &reserve);
-        let accrued_fees = vault.accrued_fees;
-        vault.b_tokens_to_underlying_down(b_tokens)
+        vault.update_rate(&e);
+        vault.b_tokens_to_underlying_down(vault.accrued_fees)
     }
 
     /// Get the blend pool address
