@@ -74,7 +74,7 @@ impl FeeVault {
     /// * `user` - The address of the user
     ///
     /// ### Returns
-    /// * `i128` - The user's position in underlying tokens, or 0 if they have no bTokens
+    /// * `i128` - The user's position in underlying tokens, or 0 if they have no shares
     pub fn get_underlying_tokens(e: Env, reserve: Address, user: Address) -> i128 {
         let shares = storage::get_reserve_vault_shares(&e, &reserve, &user);
         if shares > 0 {

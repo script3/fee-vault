@@ -54,11 +54,6 @@ impl ReserveVault {
         amount.fixed_mul_floor(self.b_rate, SCALAR_9).unwrap()
     }
 
-    /// Coverts a b_token amount to an underlying token amount rounding up
-    pub fn b_tokens_to_underlying_up(&self, amount: i128) -> i128 {
-        amount.fixed_mul_ceil(self.b_rate, SCALAR_9).unwrap()
-    }
-
     /// Coverts an underlying amount to a b_token amount rounding down
     pub fn underlying_to_b_tokens_down(&self, amount: i128) -> i128 {
         amount.fixed_div_floor(self.b_rate, SCALAR_9).unwrap()
@@ -185,7 +180,6 @@ pub fn claim_fees(e: &Env, mut vault: ReserveVault) -> (i128, i128) {
     (b_tokens_amount, underlying_amount)
 }
 
-/// Note: Test suite is temporarily broken. Will be updated with full blend integration
 #[cfg(test)]
 mod tests {
     use super::*;
