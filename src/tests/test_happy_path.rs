@@ -57,7 +57,7 @@ fn test_happy_path() {
                 function: AuthorizedFunction::Contract((
                     fee_vault.clone(),
                     Symbol::new(&e, "add_reserve_vault"),
-                    vec![&e, 0_u32.into_val(&e), usdc.to_val(),]
+                    vec![&e, usdc.to_val(),]
                 )),
                 sub_invocations: std::vec![]
             }
