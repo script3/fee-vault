@@ -1,6 +1,6 @@
 use crate::storage;
 use blend_contract_sdk::pool::{Client as PoolClient, Request};
-use soroban_sdk::{token::TokenClient, vec, Address, Env, Vec};
+use soroban_sdk::{vec, Address, Env, Vec};
 
 /// Executes a supply of a specific reserve into the underlying pool on behalf of the fee vault
 ///
@@ -8,10 +8,7 @@ use soroban_sdk::{token::TokenClient, vec, Address, Env, Vec};
 /// * `vault` - The reserve vault
 /// * `from` - The address of the user
 /// * `amount` - The amount of tokens to deposit
-///
-/// ### Returns
-/// * `i128` - The amount of bTokens received from the supply
-pub fn supply(e: &Env, reserve: &Address, from: &Address, amount: i128) -> i128 {
+pub fn supply(e: &Env, reserve: &Address, from: &Address, amount: i128) {
     let pool = get_pool_client(&e);
 
     // Execute the deposit - the tokens are transferred from the user to the pool
@@ -28,9 +25,6 @@ pub fn supply(e: &Env, reserve: &Address, from: &Address, amount: i128) -> i128 
             },
         ],
     );
-    // NOTE: Mock this for now to avoid breaking everything
-    let b_tokens_amount = 0;
-    b_tokens_amount
 }
 
 /// Executes a user withdrawal of a specific reserve from the underlying pool on behalf of the fee vault
@@ -39,14 +33,8 @@ pub fn supply(e: &Env, reserve: &Address, from: &Address, amount: i128) -> i128 
 /// * `vault` - The reserve vault
 /// * `to` - The destination of the withdrawal
 /// * `amount` - The amount of tokens to withdraw
-///
-/// ### Returns
-/// * `(i128, i128)` - (The amount of underyling tokens withdrawn, the amount of bTokens burnt)
-pub fn withdraw(e: &Env, reserve: &Address, to: &Address, amount: i128) -> (i128, i128) {
+pub fn withdraw(e: &Env, reserve: &Address, to: &Address, amount: i128) {
     let pool = get_pool_client(&e);
-
-    // Get balance pre-withdraw, as the pool can modify the withdrawal amount
-    let pre_withdrawal_balance = TokenClient::new(&e, &reserve).balance(&to);
 
     // Execute the withdrawal - the tokens are transferred from the pool to the user
     pool.submit(
@@ -62,13 +50,6 @@ pub fn withdraw(e: &Env, reserve: &Address, to: &Address, amount: i128) -> (i128
             },
         ],
     );
-
-    // Calculate the amount of tokens withdrawn and bTokens burnt
-    let post_withdrawal_balance = TokenClient::new(&e, &reserve).balance(&to);
-    let real_amount = post_withdrawal_balance - pre_withdrawal_balance;
-    // NOTE: Mock this for now to avoid breaking everything
-    let b_tokens_amount = 0;
-    (real_amount, b_tokens_amount)
 }
 
 /// Executes a claim of BLND emissions from the pool on behalf of the fee vault

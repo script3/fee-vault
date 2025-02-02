@@ -2,6 +2,7 @@ use crate::{
     constants::{SCALAR_7, SCALAR_9},
     errors::FeeVaultError,
     pool, storage,
+    validator::require_positive,
 };
 use soroban_fixed_point_math::{i128, FixedPoint};
 use soroban_sdk::{contracttype, panic_with_error, Address, Env};
