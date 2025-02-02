@@ -296,7 +296,7 @@ fn test_happy_path() {
 
     // -> verify withdraw from empty vault fails
     let result = fee_vault_client.try_withdraw(&usdc, &samwise, &1);
-    assert_eq!(result.err(), Some(Ok(Error::from_contract_error(105))));
+    assert_eq!(result.err(), Some(Ok(Error::from_contract_error(10))));
 
     /*
      * Admin claim fees and emissions
