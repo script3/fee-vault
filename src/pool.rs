@@ -1,4 +1,4 @@
-use crate::{reserve_vault::ReserveVault, storage};
+use crate::storage;
 use blend_contract_sdk::pool::{Client as PoolClient, Request};
 use soroban_sdk::{token::TokenClient, vec, Address, Env, Vec};
 
@@ -11,7 +11,7 @@ use soroban_sdk::{token::TokenClient, vec, Address, Env, Vec};
 ///
 /// ### Returns
 /// * `i128` - The amount of bTokens received from the supply
-pub fn supply(e: &Env, vault: &ReserveVault, from: &Address, amount: i128) -> i128 {
+pub fn supply(e: &Env, reserve: &Address, from: &Address, amount: i128) -> i128 {
     let pool = get_pool_client(&e);
 
     // Execute the deposit - the tokens are transferred from the user to the pool
@@ -22,7 +22,7 @@ pub fn supply(e: &Env, vault: &ReserveVault, from: &Address, amount: i128) -> i1
         &vec![
             &e,
             Request {
-                address: vault.address.clone(),
+                address: reserve.clone(),
                 amount,
                 request_type: 0,
             },
@@ -42,11 +42,11 @@ pub fn supply(e: &Env, vault: &ReserveVault, from: &Address, amount: i128) -> i1
 ///
 /// ### Returns
 /// * `(i128, i128)` - (The amount of underyling tokens withdrawn, the amount of bTokens burnt)
-pub fn withdraw(e: &Env, vault: &ReserveVault, to: &Address, amount: i128) -> (i128, i128) {
+pub fn withdraw(e: &Env, reserve: &Address, to: &Address, amount: i128) -> (i128, i128) {
     let pool = get_pool_client(&e);
 
     // Get balance pre-withdraw, as the pool can modify the withdrawal amount
-    let pre_withdrawal_balance = TokenClient::new(&e, &vault.address).balance(&to);
+    let pre_withdrawal_balance = TokenClient::new(&e, &reserve).balance(&to);
 
     // Execute the withdrawal - the tokens are transferred from the pool to the user
     pool.submit(
@@ -56,7 +56,7 @@ pub fn withdraw(e: &Env, vault: &ReserveVault, to: &Address, amount: i128) -> (i
         &vec![
             &e,
             Request {
-                address: vault.address.clone(),
+                address: reserve.clone(),
                 amount,
                 request_type: 1,
             },
@@ -64,7 +64,7 @@ pub fn withdraw(e: &Env, vault: &ReserveVault, to: &Address, amount: i128) -> (i
     );
 
     // Calculate the amount of tokens withdrawn and bTokens burnt
-    let post_withdrawal_balance = TokenClient::new(&e, &vault.address).balance(&to);
+    let post_withdrawal_balance = TokenClient::new(&e, &reserve).balance(&to);
     let real_amount = post_withdrawal_balance - pre_withdrawal_balance;
     // NOTE: Mock this for now to avoid breaking everything
     let b_tokens_amount = 0;
