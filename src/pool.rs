@@ -5,7 +5,7 @@ use soroban_sdk::{vec, Address, Env, Vec};
 /// Executes a supply of a specific reserve into the underlying pool on behalf of the fee vault
 ///
 /// ### Arguments
-/// * `vault` - The reserve vault
+/// * `reserve` - The reserve address
 /// * `from` - The address of the user
 /// * `amount` - The amount of tokens to deposit
 pub fn supply(e: &Env, reserve: &Address, from: &Address, amount: i128) {
@@ -28,7 +28,7 @@ pub fn supply(e: &Env, reserve: &Address, from: &Address, amount: i128) {
 /// Executes a user withdrawal of a specific reserve from the underlying pool on behalf of the fee vault
 ///
 /// ### Arguments
-/// * `vault` - The reserve vault
+/// * `reserve` - The reserve address
 /// * `to` - The destination of the withdrawal
 /// * `amount` - The amount of tokens to withdraw
 pub fn withdraw(e: &Env, reserve: &Address, to: &Address, amount: i128) {
@@ -57,14 +57,14 @@ pub fn withdraw(e: &Env, reserve: &Address, to: &Address, amount: i128) {
 /// ### Returns
 /// * `i128` - The amount of emissions claimed
 pub fn claim(e: &Env, reserve_token_ids: &Vec<u32>, to: &Address) -> i128 {
-    // Claim the emissions - they are transferred to the admin address
+    // Claim the emissions - they are transferred to the `to` address
     get_pool_client(&e).claim(&e.current_contract_address(), reserve_token_ids, to)
 }
 
 /// Fetches the reserve's b_rate from the pool
 ///
 /// ### Arguments
-/// * `reserve` - The reserve to fetch the b_rate for
+/// * `reserve` - The reserve address to fetch the b_rate for
 ///
 /// ### Returns
 /// * `i128` - The b_rate of the reserve

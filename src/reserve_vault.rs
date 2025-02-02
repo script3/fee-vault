@@ -167,6 +167,8 @@ pub fn withdraw(e: &Env, mut vault: ReserveVault, user: &Address, amount: i128) 
 
     let mut user_shares = storage::get_reserve_vault_shares(e, &vault.address, user);
     let share_amount = vault.b_tokens_to_shares_up(b_tokens_amount);
+    require_positive(e, share_amount, FeeVaultError::InvalidBTokensBurnt);
+
     if vault.total_shares < share_amount || vault.total_b_tokens < b_tokens_amount {
         panic_with_error!(e, FeeVaultError::InsufficientReserves);
     }
