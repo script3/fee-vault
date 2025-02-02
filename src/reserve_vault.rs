@@ -1,5 +1,5 @@
 use crate::{
-    constants::{SCALAR_7, SCALAR_9},
+    constants::{SCALAR_7, SCALAR_9, SECONDS_PER_YEAR},
     errors::FeeVaultError,
     pool, storage,
     validator::require_positive,
@@ -13,6 +13,8 @@ pub struct ReserveVault {
     pub address: Address,
     /// The reserve's last bRate
     pub b_rate: i128,
+    /// The timestamp of the last update
+    pub last_update_timestamp: u64,
     /// The total shares issued by the reserve vault
     pub total_shares: i128,
     /// The total bToken deposits owned by the reserve vault depositors. Excludes accrued fees.
@@ -66,23 +68,39 @@ impl ReserveVault {
 
     /// Updates the reserve's bRate and accrues fees to the admin in accordance with the portion of interest they earned
     pub fn update_rate(&mut self, e: &Env) {
+        let now = e.ledger().timestamp();
+        if now == self.last_update_timestamp {
+            return;
+        }
+
         let new_rate = pool::reserve_b_rate(e, &self.address);
         if new_rate == self.b_rate {
             return;
         }
 
-        // Calculate the total accrued b_tokens - 7 decimal places of precision
-        let admin_take_b_tokens = self
-            .total_b_tokens
-            .fixed_mul_floor(new_rate - self.b_rate, SCALAR_9)
-            .unwrap()
-            .fixed_mul_floor(storage::get_take_rate(e), SCALAR_7)
-            .unwrap()
-            .fixed_div_floor(new_rate, SCALAR_9)
+        let target_apr = storage::get_apr_cap(e);
+        let time_elapsed = now - self.last_update_timestamp;
+
+        let target_growth_rate =
+            100 * target_apr * (time_elapsed as i128) / SECONDS_PER_YEAR + SCALAR_9;
+
+        let target_b_rate = self
+            .b_rate
+            .fixed_mul_ceil(target_growth_rate, SCALAR_9)
             .unwrap();
 
-        // Update the reserve's bRate
+        self.last_update_timestamp = now;
         self.b_rate = new_rate;
+
+        // If the target APR wasn't reached, no fees are accrued
+        if target_b_rate >= new_rate {
+            return;
+        }
+
+        let admin_take_b_tokens = self
+            .total_b_tokens
+            .fixed_mul_ceil(new_rate - target_b_rate, new_rate)
+            .unwrap();
 
         // if no interest was accrued we do not accrue fees
         if admin_take_b_tokens <= 0 {

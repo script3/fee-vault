@@ -18,19 +18,19 @@ impl FeeVault {
     /// ### Arguments
     /// * `admin` - The admin address
     /// * `pool` - The blend pool address
-    /// * `take_rate` - The take rate for the fee vault, 7 decimal precision
+    /// * `apr_cap` - The APR cap, 7 decimal precision
     ///
     /// ### Panics
-    /// * `InvalidTakeRate` - If the take rate is not within 0 and 1_000_0000
-    pub fn __constructor(e: Env, admin: Address, pool: Address, take_rate: i128) {
+    /// * `InvalidAprCap` - If the apr_cap is not within 0 and 1_000_0000
+    pub fn __constructor(e: Env, admin: Address, pool: Address, apr_cap: i128) {
         admin.require_auth();
-        if take_rate < 0 || take_rate > 1_000_0000 {
-            panic_with_error!(&e, FeeVaultError::InvalidTakeRate);
+        if apr_cap < 0 || apr_cap > 1_000_0000 {
+            panic_with_error!(&e, FeeVaultError::InvalidAprCap);
         }
 
         storage::set_admin(&e, admin);
         storage::set_pool(&e, pool);
-        storage::set_take_rate(&e, take_rate);
+        storage::set_apr_cap(&e, apr_cap);
     }
 
     //********** Read-Only ***********//
@@ -131,21 +131,21 @@ impl FeeVault {
     //********** Read-Write Admin Only ***********//
 
     /// ADMIN ONLY
-    /// Sets the take rate for the fee vault
+    /// Sets the APR cap for the fee vault
     ///
     /// ### Arguments
     /// * `e` - The environment object
-    /// * `take_rate` - The new take rate to set
+    /// * `apr_cap` - The new APR cap to set
     ///
     /// ### Panics
-    /// * `InvalidTakeRate` - If the take rate is not within 0 and 1_000_0000
-    pub fn set_take_rate(e: Env, take_rate: i128) {
+    /// * `InvalidAprCap` - If the take rate is not within 0 and 1_000_0000
+    pub fn set_apr_cap(e: Env, apr_cap: i128) {
         storage::extend_instance(&e);
         storage::get_admin(&e).require_auth();
-        if take_rate < 0 || take_rate > 1_000_0000 {
-            panic_with_error!(&e, FeeVaultError::InvalidTakeRate);
+        if apr_cap < 0 || apr_cap > 1_000_0000 {
+            panic_with_error!(&e, FeeVaultError::InvalidAprCap);
         }
-        storage::set_take_rate(&e, take_rate);
+        storage::set_apr_cap(&e, apr_cap);
     }
 
     /// ADMIN ONLY
@@ -181,6 +181,7 @@ impl FeeVault {
                 &ReserveVault {
                     address: reserve_address.clone(),
                     b_rate: pool::reserve_b_rate(&e, &reserve_address),
+                    last_update_timestamp: e.ledger().timestamp(),
                     total_shares: 0,
                     total_b_tokens: 0,
                     accrued_fees: 0,

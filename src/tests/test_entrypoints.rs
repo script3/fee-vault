@@ -47,7 +47,7 @@ fn test_constructor_ok() {
 
     e.as_contract(&vault_address, || {
         assert_eq!(storage::get_admin(&e), samwise);
-        assert_eq!(storage::get_take_rate(&e), take_rate);
+        assert_eq!(storage::get_apr_cap(&e), take_rate);
         assert_eq!(storage::get_pool(&e), blend_pool);
     });
 }

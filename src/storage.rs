@@ -6,7 +6,7 @@ use crate::{errors::FeeVaultError, reserve_vault::ReserveVault};
 
 const POOL_KEY: &str = "Pool";
 const ADMIN_KEY: &str = "Admin";
-const TAKE_RATE_KEY: &str = "TakeRate";
+const APR_CAP_KEY: &str = "AprCap";
 
 #[derive(Clone)]
 #[contracttype]
@@ -71,19 +71,19 @@ pub fn set_admin(e: &Env, admin: Address) {
         .set::<Symbol, Address>(&Symbol::new(e, ADMIN_KEY), &admin);
 }
 
-/// Get the take rate for the fee vault
-pub fn get_take_rate(e: &Env) -> i128 {
+/// Get the APR cap for the fee vault
+pub fn get_apr_cap(e: &Env) -> i128 {
     e.storage()
         .instance()
-        .get::<Symbol, i128>(&Symbol::new(e, TAKE_RATE_KEY))
+        .get::<Symbol, i128>(&Symbol::new(e, APR_CAP_KEY))
         .unwrap_optimized()
 }
 
-/// Set the take rate for the fee vault
-pub fn set_take_rate(e: &Env, take_rate: i128) {
+/// Set the apr cap for the fee vault
+pub fn set_apr_cap(e: &Env, apr_cap: i128) {
     e.storage()
         .instance()
-        .set::<Symbol, i128>(&Symbol::new(e, TAKE_RATE_KEY), &take_rate);
+        .set::<Symbol, i128>(&Symbol::new(e, APR_CAP_KEY), &apr_cap);
 }
 
 /********** Persistent **********/
