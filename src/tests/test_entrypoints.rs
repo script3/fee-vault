@@ -3,7 +3,7 @@
 use crate::{
     reserve_vault::ReserveVault,
     storage,
-    testutils::{create_blend_pool, create_fee_vault, mockpool, register_fee_vault},
+    testutils::{create_blend_pool, create_fee_vault, mockpool, register_fee_vault, EnvTestUtils},
     FeeVaultClient,
 };
 use blend_contract_sdk::testutils::BlendFixture;
@@ -21,9 +21,17 @@ fn test_constructor_ok() {
     let samwise = Address::generate(&e);
     let blend_pool = Address::generate(&e);
     let take_rate = 1_000_0000;
+    let is_apr_capped = false;
 
-    let vault_address =
-        register_fee_vault(&e, Some((samwise.clone(), blend_pool.clone(), take_rate)));
+    let vault_address = register_fee_vault(
+        &e,
+        Some((
+            samwise.clone(),
+            blend_pool.clone(),
+            is_apr_capped,
+            take_rate,
+        )),
+    );
 
     assert_eq!(
         e.auths()[0],
@@ -37,6 +45,7 @@ fn test_constructor_ok() {
                         &e,
                         samwise.into_val(&e),
                         blend_pool.into_val(&e),
+                        is_apr_capped.into_val(&e),
                         take_rate.into_val(&e),
                     ]
                 )),
@@ -47,8 +56,10 @@ fn test_constructor_ok() {
 
     e.as_contract(&vault_address, || {
         assert_eq!(storage::get_admin(&e), samwise);
-        assert_eq!(storage::get_apr_cap(&e), take_rate);
         assert_eq!(storage::get_pool(&e), blend_pool);
+        let fee_mode = storage::get_fee_mode(&e);
+        assert_eq!(fee_mode.is_apr_capped, is_apr_capped);
+        assert_eq!(fee_mode.value, take_rate);
     });
 }
 
@@ -59,7 +70,17 @@ fn test_constructor_negative_take_rate() {
     e.mock_all_auths();
     let samwise = Address::generate(&e);
     // Note: This fails with `InvalidAction` during testing, rather than `InvalidTakeRate`
-    register_fee_vault(&e, Some((samwise.clone(), samwise.clone(), -1)));
+    register_fee_vault(&e, Some((samwise.clone(), samwise.clone(), false, -1)));
+}
+
+#[test]
+#[should_panic(expected = "Error(Context, InvalidAction)")]
+fn test_constructor_negative_apr_cap() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let samwise = Address::generate(&e);
+    // Note: This fails with `InvalidAction` during testing, rather than `InvalidTakeRate`
+    register_fee_vault(&e, Some((samwise.clone(), samwise.clone(), true, -1999)));
 }
 
 #[test]
@@ -70,13 +91,36 @@ fn test_constructor_take_rate_over_max() {
     let samwise = Address::generate(&e);
 
     // Note: This fails with `InvalidAction` during testing, rather than `InvalidTakeRate`
-    register_fee_vault(&e, Some((samwise.clone(), samwise.clone(), 1_000_0001)));
+    register_fee_vault(
+        &e,
+        Some((samwise.clone(), samwise.clone(), false, 1_000_0001)),
+    );
+}
+
+#[test]
+#[should_panic(expected = "Error(Context, InvalidAction)")]
+fn test_constructor_apr_cap_over_max() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let samwise = Address::generate(&e);
+
+    // Note: This fails with `InvalidAction` during testing, rather than `InvalidTakeRate`
+    register_fee_vault(
+        &e,
+        Some((
+            samwise.clone(),
+            samwise.clone(),
+            true,
+            170_141_183_460_469_231_731_687_303_715_884_105_727i128,
+        )),
+    );
 }
 
 #[test]
 fn test_get_b_tokens() {
     let e = Env::default();
     e.mock_all_auths();
+    e.set_default_info();
 
     let samwise = Address::generate(&e);
     let frodo = Address::generate(&e);
@@ -86,7 +130,12 @@ fn test_get_b_tokens() {
     let mock_client = mockpool::register_mock_pool_with_b_rate(&e, init_b_rate);
     let vault_address = register_fee_vault(
         &e,
-        Some((samwise.clone(), mock_client.address.clone(), 0_1000000)),
+        Some((
+            samwise.clone(),
+            mock_client.address.clone(),
+            false,
+            0_1000000,
+        )),
     );
 
     let vault_client = FeeVaultClient::new(&e, &vault_address);
@@ -97,6 +146,7 @@ fn test_get_b_tokens() {
             total_b_tokens: 1000_0000000,
             total_shares: 1200_0000000,
             b_rate: init_b_rate,
+            last_update_timestamp: e.ledger().timestamp(),
             accrued_fees: 0,
         };
         storage::set_reserve_vault(&e, &reserve, &reserve_vault);
@@ -110,6 +160,8 @@ fn test_get_b_tokens() {
 
     // b_rate is increased by 10%. `take_rate` is 10%
     mock_client.set_b_rate(&1_100_000_000);
+    // Jump some seconds forward to make sure the update_rate doesn't return early
+    e.jump_time(10);
     let expected_accrued_fees = 90909090_i128;
     let expected_total_b_tokens = 1000_0000000 - expected_accrued_fees;
 
@@ -147,7 +199,7 @@ fn test_get_b_tokens() {
 }
 
 #[test]
-fn test_set_take_rate() {
+fn test_set_fee_mode() {
     let e = Env::default();
     e.mock_all_auths();
 
@@ -155,23 +207,27 @@ fn test_set_take_rate() {
 
     let vault_address = register_fee_vault(
         &e,
-        Some((samwise.clone(), Address::generate(&e), 0_1000000)),
+        Some((samwise.clone(), Address::generate(&e), false, 0_1000000)),
     );
     let vault_client = FeeVaultClient::new(&e, &vault_address);
 
-    // Take rate should be in range 0..1_000_0000
+    // value should be in range 0..1_000_0000
     assert_eq!(
-        vault_client.try_set_take_rate(&-1).err(),
+        vault_client.try_set_fee_mode(&false, &-1).err(),
         Some(Ok(Error::from_contract_error(104)))
     );
     assert_eq!(
-        vault_client.try_set_take_rate(&1_000_0001).err(),
+        vault_client.try_set_fee_mode(&true, &-2).err(),
+        Some(Ok(Error::from_contract_error(104)))
+    );
+    assert_eq!(
+        vault_client.try_set_fee_mode(&true, &1_000_0001).err(),
         Some(Ok(Error::from_contract_error(104)))
     );
 
     // Set take rate to 0.5
     let take_rate = 500_000;
-    vault_client.set_take_rate(&take_rate);
+    vault_client.set_fee_mode(&false, &take_rate);
     assert_eq!(
         e.auths()[0],
         (
@@ -179,24 +235,31 @@ fn test_set_take_rate() {
             AuthorizedInvocation {
                 function: AuthorizedFunction::Contract((
                     vault_address.clone(),
-                    Symbol::new(&e, "set_take_rate"),
-                    vec![&e, take_rate.into_val(&e),]
+                    Symbol::new(&e, "set_fee_mode"),
+                    vec![&e, false.into_val(&e), take_rate.into_val(&e),]
                 )),
                 sub_invocations: std::vec![]
             }
         )
     );
     e.as_contract(&vault_address, || {
-        assert_eq!(storage::get_take_rate(&e), 500_000);
+        let fee_mode = storage::get_fee_mode(&e);
+        assert_eq!(fee_mode.is_apr_capped, false);
+        assert_eq!(fee_mode.value, 500_000);
     });
-    // Setting the take_rate to 0 or 100% should be possible
-    vault_client.set_take_rate(&0);
+    // Setting the value to 0 or 100% should be possible
+    vault_client.set_fee_mode(&true, &0);
     e.as_contract(&vault_address, || {
-        assert_eq!(storage::get_take_rate(&e), 0);
+        let fee_mode = storage::get_fee_mode(&e);
+        assert_eq!(fee_mode.is_apr_capped, true);
+        assert_eq!(fee_mode.value, 0);
     });
-    vault_client.set_take_rate(&1_000_0000);
+
+    vault_client.set_fee_mode(&false, &1_000_0000);
     e.as_contract(&vault_address, || {
-        assert_eq!(storage::get_take_rate(&e), 1_000_0000);
+        let fee_mode = storage::get_fee_mode(&e);
+        assert_eq!(fee_mode.is_apr_capped, false);
+        assert_eq!(fee_mode.value, 1_000_0000);
     });
 }
 
@@ -210,7 +273,7 @@ fn test_set_admin() {
 
     let vault_address = register_fee_vault(
         &e,
-        Some((samwise.clone(), Address::generate(&e), 0_1000000)),
+        Some((samwise.clone(), Address::generate(&e), true, 0_1000000)),
     );
     let vault_client = FeeVaultClient::new(&e, &vault_address);
 
@@ -275,7 +338,12 @@ fn test_add_reserve_vault() {
     let mock_client = mockpool::register_mock_pool_with_b_rate(&e, 1_100_000_000);
     let vault_address = register_fee_vault(
         &e,
-        Some((samwise.clone(), mock_client.address.clone(), 0_1000000)),
+        Some((
+            samwise.clone(),
+            mock_client.address.clone(),
+            false,
+            0_1000000,
+        )),
     );
 
     let vault_client = FeeVaultClient::new(&e, &vault_address);

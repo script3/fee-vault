@@ -57,7 +57,7 @@ fn test_fee_accrual() {
 
     fee_vault_client.add_reserve_vault(&usdc);
     fee_vault_client.add_reserve_vault(&xlm);
-    fee_vault_client.set_take_rate(&0_1000000);
+    fee_vault_client.set_fee_mode(&false, &0_1000000);
 
     /*
      * Deposit into pool

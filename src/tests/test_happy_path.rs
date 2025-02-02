@@ -95,8 +95,6 @@ fn test_happy_path() {
         )
     );
 
-    fee_vault_client.set_take_rate(&0_1000000);
-
     /*
      * Deposit into pool
      * -> deposit 100 into fee vault for each frodo and samwise

@@ -15,13 +15,14 @@ use soroban_sdk::{
 // Defaults to a mock pool with a b_rate of 1_100_000_000 and a take_rate of 0_1000000.
 pub(crate) fn register_fee_vault(
     e: &Env,
-    constructor_args: Option<(Address, Address, i128)>,
+    constructor_args: Option<(Address, Address, bool, i128)>,
 ) -> Address {
     e.register(
         FeeVault {},
         constructor_args.unwrap_or((
             Address::generate(e),
             mockpool::register_mock_pool_with_b_rate(e, 1_100_000_000).address,
+            false,
             0_1000000,
         )),
     )
@@ -148,7 +149,7 @@ pub(crate) fn create_blend_pool(
 
 /// Create a fee vault
 pub(crate) fn create_fee_vault(e: &Env, admin: &Address, pool: &Address) -> Address {
-    register_fee_vault(e, Some((admin.clone(), pool.clone(), 100_0000)))
+    register_fee_vault(e, Some((admin.clone(), pool.clone(), false, 100_0000)))
 }
 
 pub trait EnvTestUtils {
