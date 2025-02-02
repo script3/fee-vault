@@ -254,25 +254,45 @@ pub mod mockpool {
     use super::EnvTestUtils;
 
     const BRATE: Symbol = symbol_short!("b_rate");
-    #[derive(Clone)]
+    #[derive(Clone, Debug)]
     #[contracttype]
     pub struct Reserve {
         pub asset: Address,        // the underlying asset address
-        pub index: u32,            // the reserve index in the pool
-        pub l_factor: u32,         // the liability factor for the reserve
-        pub c_factor: u32,         // the collateral factor for the reserve
-        pub max_util: u32,         // the maximum utilization rate for the reserve
-        pub last_time: u64,        // the last block the data was updated
-        pub scalar: i128,          // scalar used for positions, b/d token supply, and credit
-        pub d_rate: i128,          // the conversion rate from dToken to underlying (9 decimals)
-        pub b_rate: i128,          // the conversion rate from bToken to underlying (9 decimals)
-        pub ir_mod: i128,          // the interest rate curve modifier (9 decimals)
-        pub b_supply: i128,        // the total supply of b tokens
-        pub d_supply: i128,        // the total supply of d tokens
-        pub backstop_credit: i128, // the total amount of underlying tokens owed to the backstop
-        pub collateral_cap: i128, // the total amount of underlying tokens that can be used as collateral
-        pub enabled: bool,        // is the reserve enabled
+        pub config: ReserveConfig, // the reserve configuration
+        pub data: ReserveData,     // the reserve data
+        pub scalar: i128,
     }
+
+    #[derive(Clone, Debug, Default)]
+    #[contracttype]
+    pub struct ReserveConfig {
+        pub index: u32,           // the index of the reserve in the list
+        pub decimals: u32,        // the decimals used in both the bToken and underlying contract
+        pub c_factor: u32, // the collateral factor for the reserve scaled expressed in 7 decimals
+        pub l_factor: u32, // the liability factor for the reserve scaled expressed in 7 decimals
+        pub util: u32,     // the target utilization rate scaled expressed in 7 decimals
+        pub max_util: u32, // the maximum allowed utilization rate scaled expressed in 7 decimals
+        pub r_base: u32, // the R0 value (base rate) in the interest rate formula scaled expressed in 7 decimals
+        pub r_one: u32,  // the R1 value in the interest rate formula scaled expressed in 7 decimals
+        pub r_two: u32,  // the R2 value in the interest rate formula scaled expressed in 7 decimals
+        pub r_three: u32, // the R3 value in the interest rate formula scaled expressed in 7 decimals
+        pub reactivity: u32, // the reactivity constant for the reserve scaled expressed in 7 decimals
+        pub collateral_cap: i128, // the total amount of underlying tokens that can be used as collateral
+        pub enabled: bool,        // the flag of the reserve
+    }
+
+    #[derive(Clone, Debug, Default)]
+    #[contracttype]
+    pub struct ReserveData {
+        pub d_rate: i128,   // the conversion rate from dToken to underlying with 12 decimals
+        pub b_rate: i128,   // the conversion rate from bToken to underlying with 12 decimals
+        pub ir_mod: i128,   // the interest rate curve modifier with 7 decimals
+        pub b_supply: i128, // the total supply of b tokens, in the underlying token's decimals
+        pub d_supply: i128, // the total supply of d tokens, in the underlying token's decimals
+        pub backstop_credit: i128, // the amount of underlying tokens currently owed to the backstop
+        pub last_time: u64, // the last block the data was updated
+    }
+
     #[contract]
     pub struct MockPool;
 
@@ -287,23 +307,14 @@ pub mod mockpool {
         }
 
         /// Note: We're only interested in the `b_rate`
-        pub fn get_reserve(e: Env, _reserve: Address) -> Reserve {
+        pub fn get_reserve(e: Env, reserve: Address) -> Reserve {
+            let mut r_data = ReserveData::default();
+            r_data.b_rate = e.storage().instance().get(&BRATE).unwrap_or(0);
             Reserve {
-                asset: e.current_contract_address(),
-                index: 0,
-                l_factor: 0,
-                c_factor: 0,
-                max_util: 0,
-                last_time: 0,
+                asset: reserve,
+                config: ReserveConfig::default(),
+                data: r_data,
                 scalar: 0,
-                d_rate: 0,
-                b_rate: e.storage().instance().get(&BRATE).unwrap_or(1_000_000_000),
-                ir_mod: 0,
-                b_supply: 0,
-                d_supply: 0,
-                backstop_credit: 0,
-                collateral_cap: 0,
-                enabled: true,
             }
         }
     }
