@@ -12,10 +12,10 @@ The fee vault contract interacts with the underlying blend pool on behalf of use
 
 To set up a fee vault for a blend pool, the admin must first deploy a new fee vault contract.
 
-Once the contracts deployed, the admin can initialize the fee vault by calling `initialize`.
+The contracts are initialized through the `__constructor`.
 
 ```rust
-   /// Initialize the contract
+    /// Initialize the contract
     ///
     /// ### Arguments
     /// * `admin` - The admin address
@@ -23,27 +23,18 @@ Once the contracts deployed, the admin can initialize the fee vault by calling `
     /// * `take_rate` - The take rate for the fee vault, 7 decimal precision
     ///
     /// ### Panics
-    /// * `AlreadyInitializedError` - If the contract has already been initialized
     /// * `InvalidTakeRate` - If the take rate is not within 0 and 1_000_0000
-    pub fn initialize(e: Env, admin: Address, pool: Address, take_rate: i128)
+    pub fn __constructor(e: Env, admin: Address, pool: Address, take_rate: i128)
 ```
 
-After initializing the contract, the admin must add all pool reserves they wish to support to the vault. This is done by calling `add_reserve` with the reserve address and the reserve's take rate.
+After initializing the contract, the admin must add all pool reserves they wish to support to the vault. This is done by calling `add_reserve` with the reserve address.
 
 ```rust
-    /// Adds a new reserve to the fee vault
+    /// Add a new reserve vault
     ///
     /// ### Arguments
-    /// * `reserve_id` - The ID of the reserve to add,
-    /// must be the same as the blend pool reserve id
-    /// * `reserve_address` - The address of the reserve to add,
-    /// must be the same as the blend pool reserve address
-    ///
-    /// ### Note
-    /// DO NOT call this function without ensuring the reserve id and address
-    /// correspond to the blend pool reserve id and address.
-    /// Doing so will cause you to be unable to support the reserve of that id in the future.
-    pub fn add_reserve(e: Env, reserve_id: u32, reserve_address: Address)
+    /// * `reserve_address` - The address of the reserve to add
+    pub fn add_reserve_vault(e: Env, reserve_address: Address) 
 ```
 
 ## Integration
@@ -54,42 +45,43 @@ To integrate the fee vault into your app or protocol, you will just need to have
     /// Deposits tokens into the fee vault for a specific reserve
     ///
     /// ### Arguments
-    /// * `from` - The address of the user making the deposit
+    /// * `reserve` - The address of the reserve to deposit
+    /// * `user` - The address of the user making the deposit
     /// * `amount` - The amount of tokens to deposit
-    /// * `reserve_id` - The ID of the reserve to deposit
     ///
     /// ### Returns
-    /// * `i128` - The amount of b-tokens received in exchange for the deposited underlying tokens
-    pub fn deposit(e: &Env, from: Address, amount: i128, reserve_id: u32) -> i128
+    /// * `i128` - The number of shares minted for the user
+    pub fn deposit(e: Env, reserve: Address, user: Address, amount: i128) -> i128
 ```
 
 and withdraw using the `withdraw` function.
 
 ```rust
+
     /// Withdraws tokens from the fee vault for a specific reserve
     ///
     /// ### Arguments
-    /// * `from` - The address of the user making the withdrawal
-    /// * `id` - The ID of the reserve to withdraw from
+    /// * `reserve` - The address of the reserve to withdraw
+    /// * `user` - The address of the user making the withdrawal
     /// * `amount` - The amount of tokens to withdraw
     ///
     /// ### Returns
-    /// * `i128` - The amount of b_tokens withdrawn
-    pub fn withdraw(e: &Env, from: Address, id: u32, amount: i128) -> i128
+    /// * `i128` - The number of shares burnt
+    pub fn withdraw(e: Env, reserve: Address, user: Address, amount: i128) -> i128
 ```
 
-You can display to users their current asset balance using the `get_deposits_in_underlying` function.
+You can display to users their current asset balance using the `get_underlying_tokens` function.
 
 ```rust
-    /// Fetch a deposits for a user
+    /// Fetch a user's position in underlying tokens
     ///
     /// ### Arguments
-    /// * `ids` - The ids of the reserves
+    /// * `reserve` - The asset address of the reserve
     /// * `user` - The address of the user
     ///
     /// ### Returns
-    /// * `Map<Address, i128>` - A map of underlying addresses and underlying deposit amounts
-    pub fn get_deposits_in_underlying(e: Env, ids: Vec<u32>, user: Address)
+    /// * `i128` - The user's position in underlying tokens, or 0 if they have no shares
+    pub fn get_underlying_tokens(e: Env, reserve: Address, user: Address) -> i128
 ```
 
 # Limitations
@@ -97,20 +89,6 @@ You can display to users their current asset balance using the `get_deposits_in_
 ## Collateralizing and Borrowing
 
 The fee vault contract does not currently support collateralizing and borrowing. It only supplies and withdraws tokens from the blend pool.
-
-## Withdrawal Dust Clearing
-
-It's difficult to correctly fully withdraw a users funds without introducing significantly more complexity to the fee vault contract. The current contract implementation instead wipes a users deposit balance if they have less than 0.0000010 tokens remaining.
-
-## Accurately Reading Current User Underlying Balance
-
-It's difficult to accurately estimate the users current underlying balance in a read function. Instead we return the users underlying balance as of the last b_rate observed by the vault.
-
-## Claiming Fees Without an Amount Input
-
-For the above reason, and because accrued fees are stored in bTokens, it's impossible to know how much underlying the admin is allowed to withdraw from the underlying blend pool in accordance with their earned fees. Instead the admin must input how much underlying they want to withdraw and the vault will withdraw it from the blend pool. Then revert if the amount is too large.
-
-This means that if the admin wants to withdraw all or most of their fees they will have to check the current bRate on the blend pool contract first.
 
 # Other notes
 
