@@ -47,6 +47,24 @@ impl ReserveVault {
             .unwrap()
     }
 
+    /// Coverts a share amount to an underlying token amount rounding down
+    ///
+    /// ### Note
+    /// This function performs the calculations based on the last observed b_rate.
+    /// If `update_rate` hasn't been invoked in the same ledger, it may yield incorrect results.
+    pub fn shares_to_underlying_down(&self, amount: i128) -> i128 {
+        let b_tokens = self.shares_to_b_tokens_down(amount);
+        self.b_tokens_to_underlying_down(b_tokens)
+    }
+    /// Coverts a b_token amount to an underlying token amount rounding down
+    ///
+    /// ### Note
+    /// This function performs the calculations based on the last observed b_rate.
+    /// If `update_rate` hasn't been invoked in the same ledger, it may yield incorrect results.
+    pub fn b_tokens_to_underlying_down(&self, amount: i128) -> i128 {
+        amount.fixed_mul_floor(self.b_rate, SCALAR_9).unwrap()
+    }
+
     /// Updates the reserve's bRate and accrues fees to the admin in accordance with the portion of interest they earned
     pub fn update_rate(&mut self, e: &Env, new_rate: i128) {
         if new_rate == self.b_rate {
