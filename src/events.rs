@@ -5,14 +5,10 @@ pub struct FeeVaultEvents {}
 impl FeeVaultEvents {
     /// Emitted when a new reserve vault is created
     ///
-    /// - topics - `["new_reserve_vault", reserve: Address, reserve_id: u32]`
+    /// - topics - `["new_reserve_vault", reserve: Address]`
     /// - data - Void
-    pub fn new_reserve_vault(e: &Env, reserve_id: u32, reserve: &Address) {
-        let topics = (
-            Symbol::new(&e, "new_reserve_vault"),
-            reserve.clone(),
-            reserve_id,
-        );
+    pub fn new_reserve_vault(e: &Env, reserve: &Address) {
+        let topics = (Symbol::new(&e, "new_reserve_vault"), reserve.clone());
         e.events().publish(topics, ());
     }
 

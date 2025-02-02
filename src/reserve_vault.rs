@@ -7,8 +7,6 @@ use soroban_sdk::{contracttype, panic_with_error, Address, Env};
 pub struct ReserveVault {
     /// The reserve asset address
     pub address: Address,
-    /// The reserve id in the pool
-    pub reserve_id: u32,
     /// The reserve's last bRate
     pub b_rate: i128,
     /// The total shares issued by the reserve vault
@@ -219,7 +217,6 @@ mod tests {
         let e = Env::default();
         let mut vault = ReserveVault {
             address: Address::generate(&e),
-            reserve_id: 0,
             b_rate: 1_000_000_000,
             total_shares: 0,
             total_b_tokens: 0,
@@ -250,7 +247,6 @@ mod tests {
         let e = Env::default();
         let mut vault = ReserveVault {
             address: Address::generate(&e),
-            reserve_id: 0,
             b_rate: 1_000_000_000,
             total_shares: 0,
             total_b_tokens: 0,
@@ -281,7 +277,6 @@ mod tests {
         let e = Env::default();
         let mut vault = ReserveVault {
             address: Address::generate(&e),
-            reserve_id: 0,
             b_rate: 1_000_000_000,
             total_shares: 0,
             total_b_tokens: 0,
@@ -316,7 +311,6 @@ mod tests {
 
             let mut reserve_vault = ReserveVault {
                 address: Address::generate(&e),
-                reserve_id: 0,
                 total_b_tokens: 1000_0000000,
                 total_shares: 1200_0000000,
                 b_rate: 1_100_000_000,
@@ -360,7 +354,6 @@ mod tests {
 
             let mut reserve_vault = ReserveVault {
                 address: Address::generate(&e),
-                reserve_id: 0,
                 total_b_tokens: 500_000_0000000,
                 total_shares: 500_000_0000000,
                 b_rate: 1_000_000_000,
@@ -399,7 +392,6 @@ mod tests {
 
             let mut reserve_vault = ReserveVault {
                 address: Address::generate(&e),
-                reserve_id: 0,
                 total_b_tokens: 1000_0000000,
                 total_shares: 1200_0000000,
                 b_rate: 1_100_000_000,
@@ -428,7 +420,6 @@ mod tests {
             storage::set_take_rate(&e, 0_1000000);
             let reserve_vault = ReserveVault {
                 address: reserve.clone(),
-                reserve_id: 0,
                 total_b_tokens: 1000_0000000,
                 total_shares: 1200_0000000,
                 b_rate: 1_100_000_000,
@@ -471,7 +462,6 @@ mod tests {
             storage::set_take_rate(&e, 0_1000000);
             let reserve_vault = ReserveVault {
                 address: reserve.clone(),
-                reserve_id: 0,
                 total_b_tokens: 0,
                 total_shares: 0,
                 b_rate: 1_000_000_000,
@@ -512,7 +502,6 @@ mod tests {
             storage::set_take_rate(&e, 0_1000000);
             let reserve_vault = ReserveVault {
                 address: reserve.clone(),
-                reserve_id: 0,
                 total_b_tokens: 1000_0000000,
                 total_shares: 1200_0000000,
                 b_rate: 1_100_000_000,
@@ -537,7 +526,6 @@ mod tests {
             storage::set_take_rate(&e, 0_1000000);
             let reserve_vault = ReserveVault {
                 address: reserve.clone(),
-                reserve_id: 0,
                 total_b_tokens: 1000_0000000,
                 total_shares: 1200_0000000,
                 b_rate: 1_100_000_000,
@@ -582,7 +570,6 @@ mod tests {
             storage::set_take_rate(&e, 0_1000000);
             let reserve_vault = ReserveVault {
                 address: reserve.clone(),
-                reserve_id: 0,
                 total_b_tokens: 1000_0000000,
                 total_shares: 1200_0000000,
                 b_rate: 1_100_000_000,
@@ -608,7 +595,6 @@ mod tests {
             storage::set_take_rate(&e, 0_1000000);
             let reserve_vault = ReserveVault {
                 address: reserve.clone(),
-                reserve_id: 0,
                 total_b_tokens: 1000_0000000,
                 total_shares: 1200_0000000,
                 b_rate: 1_100_000_000,
@@ -638,7 +624,6 @@ mod tests {
             storage::set_take_rate(&e, 0_1000000);
             let reserve_vault = ReserveVault {
                 address: reserve.clone(),
-                reserve_id: 0,
                 total_b_tokens: 1000_0000000,
                 total_shares: 1200_0000000,
                 b_rate: 1_100_000_000,
@@ -668,7 +653,6 @@ mod tests {
             let starting_fees = 5_0000000;
             let reserve_vault = ReserveVault {
                 address: reserve.clone(),
-                reserve_id: 0,
                 total_b_tokens: 1000_0000000,
                 total_shares: 1200_0000000,
                 b_rate: 1_100_000_000,
@@ -710,7 +694,6 @@ mod tests {
             storage::set_take_rate(&e, 0_1000000);
             let reserve_vault = ReserveVault {
                 address: reserve.clone(),
-                reserve_id: 0,
                 total_b_tokens: 1000_0000000,
                 total_shares: 1200_0000000,
                 b_rate: 1_100_000_000,
@@ -735,7 +718,6 @@ mod tests {
             storage::set_take_rate(&e, 0_1000000);
             let reserve_vault = ReserveVault {
                 address: reserve.clone(),
-                reserve_id: 0,
                 total_b_tokens: 1000_0000000,
                 total_shares: 1200_0000000,
                 b_rate: 1_100_000_000,

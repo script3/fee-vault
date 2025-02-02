@@ -170,20 +170,18 @@ impl FeeVault {
         if storage::has_reserve_vault(&e, &reserve_address) {
             panic_with_error!(&e, FeeVaultError::ReserveAlreadyExists);
         } else {
-            let reserve_id = pool::reserve_id(&e, &reserve_address);
             storage::set_reserve_vault(
                 &e,
                 &reserve_address,
                 &ReserveVault {
                     address: reserve_address.clone(),
-                    reserve_id,
                     b_rate: 1_000_000_000,
                     total_shares: 0,
                     total_b_tokens: 0,
                     accrued_fees: 0,
                 },
             );
-            FeeVaultEvents::new_reserve_vault(&e, reserve_id, &reserve_address);
+            FeeVaultEvents::new_reserve_vault(&e, &reserve_address);
         }
     }
 
