@@ -295,8 +295,7 @@ fn test_fee_accrual() {
     let admin_xlm_fees = xlm_vault
         .accrued_fees
         .fixed_mul_floor(xlm_vault.b_rate, SCALAR_9)
-        .unwrap()
-        - 10;
+        .unwrap();
     fee_vault_client.claim_fees(&xlm, &bombadil);
     assert_eq!(
         xlm_client.balance(&bombadil),

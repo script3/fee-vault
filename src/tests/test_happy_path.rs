@@ -319,12 +319,7 @@ fn test_happy_path() {
                 function: AuthorizedFunction::Contract((
                     fee_vault.clone(),
                     Symbol::new(&e, "claim_fees"),
-                    vec![
-                        &e,
-                        usdc.to_val(),
-                        gandalf.to_val(),
-                        expected_fees.into_val(&e),
-                    ]
+                    vec![&e, usdc.to_val(), gandalf.to_val(),]
                 )),
                 sub_invocations: std::vec![]
             }
