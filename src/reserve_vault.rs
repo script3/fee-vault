@@ -1,5 +1,5 @@
 use crate::{
-    constants::{SCALAR_7, SCALAR_9, SECONDS_PER_YEAR},
+    constants::{SCALAR_12, SCALAR_7, SECONDS_PER_YEAR},
     errors::FeeVaultError,
     pool, storage,
     validator::require_positive,
@@ -53,17 +53,17 @@ impl ReserveVault {
 
     /// Coverts a b_token amount to an underlying token amount rounding down
     pub fn b_tokens_to_underlying_down(&self, amount: i128) -> i128 {
-        amount.fixed_mul_floor(self.b_rate, SCALAR_9).unwrap()
+        amount.fixed_mul_floor(self.b_rate, SCALAR_12).unwrap()
     }
 
     /// Coverts an underlying amount to a b_token amount rounding down
     pub fn underlying_to_b_tokens_down(&self, amount: i128) -> i128 {
-        amount.fixed_div_floor(self.b_rate, SCALAR_9).unwrap()
+        amount.fixed_div_floor(self.b_rate, SCALAR_12).unwrap()
     }
 
     /// Coverts an underlying amount to a b_token amount rounding up
     pub fn underlying_to_b_tokens_up(&self, amount: i128) -> i128 {
-        amount.fixed_div_ceil(self.b_rate, SCALAR_9).unwrap()
+        amount.fixed_div_ceil(self.b_rate, SCALAR_12).unwrap()
     }
 
     /// Updates the reserve's bRate and accrues fees to the admin in accordance with the portion of interest they earned
@@ -83,12 +83,13 @@ impl ReserveVault {
             let target_apr = fee_mode.value;
             let time_elapsed = now - self.last_update_timestamp;
 
+            // Target growth rate scaled in 12 decimals
             let target_growth_rate =
-                100 * target_apr * (time_elapsed as i128) / SECONDS_PER_YEAR + SCALAR_9;
+                10_000 * target_apr * (time_elapsed as i128) / SECONDS_PER_YEAR + SCALAR_12;
 
             let target_b_rate = self
                 .b_rate
-                .fixed_mul_ceil(target_growth_rate, SCALAR_9)
+                .fixed_mul_ceil(target_growth_rate, SCALAR_12)
                 .unwrap();
 
             // If the target APR wasn't reached, no fees are accrued
@@ -102,16 +103,17 @@ impl ReserveVault {
         } else {
             let admin_take_rate = fee_mode.value;
             self.total_b_tokens
-                .fixed_mul_floor(new_rate - self.b_rate, SCALAR_9)
+                .fixed_mul_floor(new_rate - self.b_rate, SCALAR_12)
                 .unwrap()
                 .fixed_mul_floor(admin_take_rate, SCALAR_7)
                 .unwrap()
-                .fixed_div_floor(new_rate, SCALAR_9)
+                .fixed_div_floor(new_rate, SCALAR_12)
                 .unwrap()
         };
 
         self.last_update_timestamp = now;
         self.b_rate = new_rate;
+
         // if no interest was accrued we do not accrue fees
         if admin_take_b_tokens <= 0 {
             return;
@@ -237,7 +239,7 @@ mod generic_tests {
         let e = Env::default();
         let mut vault = ReserveVault {
             address: Address::generate(&e),
-            b_rate: 1_000_000_000,
+            b_rate: 1_000_000_000_000,
             last_update_timestamp: 0,
             total_shares: 0,
             total_b_tokens: 0,
@@ -268,7 +270,7 @@ mod generic_tests {
         let e = Env::default();
         let mut vault = ReserveVault {
             address: Address::generate(&e),
-            b_rate: 1_000_000_000,
+            b_rate: 1_000_000_000_000,
             last_update_timestamp: 0,
             total_shares: 0,
             total_b_tokens: 0,
@@ -299,7 +301,7 @@ mod generic_tests {
         let e = Env::default();
         let mut vault = ReserveVault {
             address: Address::generate(&e),
-            b_rate: 1_000_000_000,
+            b_rate: 1_000_000_000_000,
             last_update_timestamp: 0,
             total_shares: 0,
             total_b_tokens: 0,
@@ -324,7 +326,7 @@ mod generic_tests {
         let e = Env::default();
         e.mock_all_auths();
 
-        let init_b_rate = 1_100_000_000;
+        let init_b_rate = 1_100_000_000_000;
 
         let mock_client = &mockpool::register_mock_pool_with_b_rate(&e, init_b_rate);
         let vault_address = register_fee_vault(
@@ -351,11 +353,11 @@ mod generic_tests {
             storage::set_reserve_vault(&e, &reserve, &reserve_vault);
 
             // Perform a deposit for samwise
-            let new_b_rate = 1_110_000_000;
+            let new_b_rate = 1_110_000_000_000;
             mockpool::set_b_rate(&e, mock_client, new_b_rate);
 
             let b_tokens = 83_3333300;
-            let amount = b_tokens.fixed_mul_floor(new_b_rate, SCALAR_9).unwrap();
+            let amount = b_tokens.fixed_mul_floor(new_b_rate, SCALAR_12).unwrap();
             let expected_b_token_fees = 0_9009009;
             let expected_share_amount = 100_0901673;
             let (b_tokens_minted, shares_minted) = deposit(&e, &reserve, &samwise, amount);
@@ -382,7 +384,7 @@ mod generic_tests {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
 
-        let init_b_rate = 1_000_000_000;
+        let init_b_rate = 1_000_000_000_000;
 
         let mock_client = &mockpool::register_mock_pool_with_b_rate(&e, init_b_rate);
         let vault_address = register_fee_vault(
@@ -409,10 +411,10 @@ mod generic_tests {
             storage::set_reserve_vault(&e, &reserve, &reserve_vault);
 
             // Perform a deposit for samwise
-            let new_b_rate = 1_100_000_000;
+            let new_b_rate = 1_100_000_000_000;
             mockpool::set_b_rate(&e, mock_client, new_b_rate);
             let amount = 100_0000000;
-            let expected_b_tokens = amount.fixed_div_floor(new_b_rate, SCALAR_9).unwrap();
+            let expected_b_tokens = amount.fixed_div_floor(new_b_rate, SCALAR_12).unwrap();
             let (b_tokens_minted, shares_minted) = deposit(&e, &reserve, &samwise, amount);
 
             // Load the updated reserve to verify the changes
@@ -446,7 +448,7 @@ mod generic_tests {
                 address: reserve.clone(),
                 total_b_tokens: 1000_0000000,
                 total_shares: 1200_0000000,
-                b_rate: 1_100_000_000,
+                b_rate: 1_100_000_000_000,
                 last_update_timestamp: e.ledger().timestamp(),
                 accrued_fees: 0,
             };
@@ -471,7 +473,7 @@ mod generic_tests {
                 address: reserve.clone(),
                 total_b_tokens: 1000_0000000,
                 total_shares: 1200_0000000,
-                b_rate: 1_100_000_000,
+                b_rate: 1_100_000_000_000,
                 last_update_timestamp: e.ledger().timestamp(),
                 accrued_fees: 0,
             };
@@ -497,7 +499,7 @@ mod generic_tests {
                 address: reserve.clone(),
                 total_b_tokens: 10000_0000000,
                 total_shares: 1200_0000000,
-                b_rate: 1_100_000_000,
+                b_rate: 1_100_000_000_000,
                 last_update_timestamp: e.ledger().timestamp(),
                 accrued_fees: 0,
             };
@@ -512,7 +514,7 @@ mod generic_tests {
         let e = Env::default();
         e.mock_all_auths();
 
-        let mock_client = &mockpool::register_mock_pool_with_b_rate(&e, 1_100_000_000);
+        let mock_client = &mockpool::register_mock_pool_with_b_rate(&e, 1_100_000_000_000);
         let vault_address = register_fee_vault(
             &e,
             Some((
@@ -530,14 +532,14 @@ mod generic_tests {
                 address: reserve.clone(),
                 total_b_tokens: 1000_0000000,
                 total_shares: 1200_0000000,
-                b_rate: 1_100_000_000,
+                b_rate: 1_100_000_000_000,
                 last_update_timestamp: e.ledger().timestamp(),
                 accrued_fees: 0,
             };
             storage::set_reserve_vault(&e, &reserve, &reserve_vault);
 
             // Perform a withdraw for samwise
-            let new_b_rate = 1_110_000_000;
+            let new_b_rate = 1_110_000_000_000;
             mockpool::set_b_rate(&e, mock_client, new_b_rate);
 
             let b_tokens_to_withdraw = 50_0000000;
@@ -590,7 +592,7 @@ mod generic_tests {
                 address: reserve.clone(),
                 total_b_tokens: 1000_0000000,
                 total_shares: 1200_0000000,
-                b_rate: 1_100_000_000,
+                b_rate: 1_100_000_000_000,
                 last_update_timestamp: e.ledger().timestamp(),
                 accrued_fees: 0,
             };
@@ -622,7 +624,7 @@ mod generic_tests {
                 address: reserve.clone(),
                 total_b_tokens: 1000_0000000,
                 total_shares: 1200_0000000,
-                b_rate: 1_100_000_000,
+                b_rate: 1_100_000_000_000,
                 last_update_timestamp: e.ledger().timestamp(),
                 accrued_fees: 0,
             };
@@ -647,7 +649,7 @@ mod generic_tests {
                 address: reserve.clone(),
                 total_b_tokens: 1000_0000000,
                 total_shares: 1200_0000000,
-                b_rate: 1_100_000_000,
+                b_rate: 1_100_000_000_000,
                 last_update_timestamp: e.ledger().timestamp(),
                 accrued_fees: 0,
             };
@@ -674,7 +676,7 @@ mod generic_tests {
                 address: reserve.clone(),
                 total_b_tokens: 1000_0000000,
                 total_shares: 1200_0000000,
-                b_rate: 1_100_000_000,
+                b_rate: 1_100_000_000_000,
                 last_update_timestamp: e.ledger().timestamp(),
                 accrued_fees: 0,
             };
@@ -709,7 +711,7 @@ mod generic_tests {
                 address: reserve.clone(),
                 total_b_tokens: 1000_0000000,
                 total_shares: 1200_0000000,
-                b_rate: 1_100_000_000,
+                b_rate: 1_100_000_000_000,
                 last_update_timestamp: e.ledger().timestamp(),
                 accrued_fees: 0,
             };
@@ -728,7 +730,7 @@ mod generic_tests {
         let e = Env::default();
         e.mock_all_auths();
 
-        let init_b_rate = 1_100_000_000;
+        let init_b_rate = 1_100_000_000_000;
         let mock_client = &mockpool::register_mock_pool_with_b_rate(&e, init_b_rate);
         let vault_address = register_fee_vault(
             &e,
@@ -759,7 +761,7 @@ mod generic_tests {
             assert_eq!(
                 underlying_burnt,
                 b_tokens_burnt
-                    .fixed_mul_floor(init_b_rate, SCALAR_9)
+                    .fixed_mul_floor(init_b_rate, SCALAR_12)
                     .unwrap()
             );
 
@@ -770,7 +772,7 @@ mod generic_tests {
             assert_eq!(reserve_vault.total_shares, 1200_0000000);
 
             // Perform a deposit for samwise
-            let new_b_rate = 1_110_000_000;
+            let new_b_rate = 1_110_000_000_000;
             mockpool::set_b_rate(&e, mock_client, new_b_rate);
             let expected_b_token_fees = 0_9009009;
             let (b_tokens_burnt, underlying_burnt) = claim_fees(&e, &reserve);
@@ -778,7 +780,7 @@ mod generic_tests {
             assert_eq!(
                 underlying_burnt,
                 b_tokens_burnt
-                    .fixed_mul_floor(new_b_rate, SCALAR_9)
+                    .fixed_mul_floor(new_b_rate, SCALAR_12)
                     .unwrap()
             );
 
@@ -808,7 +810,7 @@ mod generic_tests {
                 address: reserve.clone(),
                 total_b_tokens: 1000_0000000,
                 total_shares: 1200_0000000,
-                b_rate: 1_100_000_000,
+                b_rate: 1_100_000_000_000,
                 last_update_timestamp: e.ledger().timestamp(),
                 accrued_fees: 0,
             };
@@ -823,7 +825,7 @@ mod generic_tests {
         let e = Env::default();
         e.mock_all_auths();
 
-        let init_b_rate = 1_100_000_000;
+        let init_b_rate = 1_100_000_000_000;
         let mock_client = &mockpool::register_mock_pool_with_b_rate(&e, init_b_rate);
         let vault_address = register_fee_vault(
             &e,
@@ -850,7 +852,7 @@ mod generic_tests {
             storage::set_reserve_vault(&e, &reserve, &reserve_vault);
 
             // Even if b_rate doubles, since there are no b_tokens deposited, no more fees should've been accrued
-            let new_b_rate = 2_000_000_000;
+            let new_b_rate = 2_000_000_000_000;
             mockpool::set_b_rate(&e, mock_client, new_b_rate);
 
             let (b_tokens_burnt, underlying_balance_claimed) = claim_fees(&e, &reserve);
@@ -859,7 +861,7 @@ mod generic_tests {
             assert_eq!(
                 underlying_balance_claimed,
                 b_tokens_burnt
-                    .fixed_mul_floor(new_b_rate, SCALAR_9)
+                    .fixed_mul_floor(new_b_rate, SCALAR_12)
                     .unwrap()
             );
         });
@@ -877,7 +879,7 @@ mod take_rate_tests {
         let e = Env::default();
         e.mock_all_auths();
 
-        let init_b_rate = 1_100_000_000;
+        let init_b_rate = 1_100_000_000_000;
         let bombadil = Address::generate(&e);
 
         let mock_client = &mockpool::register_mock_pool_with_b_rate(&e, init_b_rate);
@@ -903,7 +905,7 @@ mod take_rate_tests {
 
             // update b_rate to 1.2
             let expected_accrued_fee = 16_6666666;
-            mockpool::set_b_rate(&e, mock_client, 120_000_0000);
+            mockpool::set_b_rate(&e, mock_client, 120_000_0000_000);
             reserve_vault.update_rate(&e);
 
             assert_eq!(reserve_vault.accrued_fees, expected_accrued_fee);
@@ -912,7 +914,7 @@ mod take_rate_tests {
 
             // update b_rate to 1.5
             let expected_accrued_fee_2 = 39_333_3333;
-            mockpool::set_b_rate(&e, mock_client, 150_000_0000);
+            mockpool::set_b_rate(&e, mock_client, 150_000_0000_000);
 
             reserve_vault.update_rate(&e);
 
@@ -933,7 +935,7 @@ mod take_rate_tests {
         let e = Env::default();
         e.mock_all_auths();
 
-        let init_b_rate = 1_000_000_000;
+        let init_b_rate = 1_000_000_000_000;
         let bombadil = Address::generate(&e);
 
         let mock_client = &mockpool::register_mock_pool_with_b_rate(&e, init_b_rate);
@@ -957,9 +959,9 @@ mod take_rate_tests {
                 accrued_fees: 0,
             };
 
-            let expected_accrued_fee = 1050_1384549;
+            let expected_accrued_fee = 1050_1384599;
 
-            let new_b_rate = 1_000_0000000 * SCALAR_9 / 989_4986154;
+            let new_b_rate = 1_000_0000000 * SCALAR_12 / 989_4986154;
             mockpool::set_b_rate(&e, mock_client, new_b_rate);
             reserve_vault.update_rate(&e);
             let deposit_b_tokens = 989_4986154;
@@ -972,7 +974,7 @@ mod take_rate_tests {
             );
             assert_eq!(reserve_vault.total_shares, 500_000_0000000 + 991_5812105);
 
-            assert_eq!(reserve_vault.b_rate, 1_010_612_834);
+            assert_eq!(reserve_vault.b_rate, 1_010_612_834_052);
 
             assert_eq!(reserve_vault.accrued_fees, expected_accrued_fee);
         });
@@ -991,7 +993,7 @@ mod take_rate_tests {
                 address: Address::generate(&e),
                 total_b_tokens: 1000_0000000,
                 total_shares: 1200_0000000,
-                b_rate: 1_100_000_000,
+                b_rate: 1_100_000_000_000,
                 last_update_timestamp: now,
                 accrued_fees: 12_0000000,
             };

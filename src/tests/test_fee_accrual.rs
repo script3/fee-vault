@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use crate::constants::{SCALAR_7, SCALAR_9};
+use crate::constants::{SCALAR_12, SCALAR_7};
 use crate::storage::ONE_DAY_LEDGERS;
 use crate::testutils::{assert_approx_eq_rel, create_blend_pool, create_fee_vault, EnvTestUtils};
 use crate::FeeVaultClient;
@@ -226,7 +226,7 @@ fn test_fee_accrual() {
     let usdc_vault = fee_vault_client.get_reserve_vault(&usdc);
     let usdc_withdrawal_amount = usdc_vault
         .shares_to_b_tokens_down(starting_balance)
-        .fixed_mul_floor(usdc_vault.b_rate, SCALAR_9)
+        .fixed_mul_floor(usdc_vault.b_rate, SCALAR_12)
         .unwrap();
     let frodo_profit_usdc = usdc_withdrawal_amount - starting_balance;
     // let frodo_profit_usdc = 4_7207977;
@@ -248,7 +248,7 @@ fn test_fee_accrual() {
     let xlm_vault = fee_vault_client.get_reserve_vault(&xlm);
     let xlm_withdrawal_amount = xlm_vault
         .shares_to_b_tokens_down(starting_balance)
-        .fixed_mul_floor(xlm_vault.b_rate, SCALAR_9)
+        .fixed_mul_floor(xlm_vault.b_rate, SCALAR_12)
         .unwrap();
     let frodo_profit_xlm = xlm_withdrawal_amount - starting_balance;
     // let frodo_profit_xlm = 4_7300002;
@@ -273,7 +273,7 @@ fn test_fee_accrual() {
     let pre_claim_usdc = usdc_client.balance(&bombadil);
     let admin_usdc_fees = usdc_vault
         .accrued_fees
-        .fixed_mul_floor(usdc_vault.b_rate, SCALAR_9)
+        .fixed_mul_floor(usdc_vault.b_rate, SCALAR_12)
         .unwrap();
     fee_vault_client.claim_fees(&usdc, &bombadil);
     assert_eq!(
@@ -294,7 +294,7 @@ fn test_fee_accrual() {
     let pre_claim_xlm = xlm_client.balance(&bombadil);
     let admin_xlm_fees = xlm_vault
         .accrued_fees
-        .fixed_mul_floor(xlm_vault.b_rate, SCALAR_9)
+        .fixed_mul_floor(xlm_vault.b_rate, SCALAR_12)
         .unwrap();
     fee_vault_client.claim_fees(&xlm, &bombadil);
     assert_eq!(
