@@ -115,8 +115,6 @@ pub(crate) fn create_blend_pool(
     // wait a week and start emissions
     e.jump(ONE_DAY_LEDGERS * 7);
     blend_fixture.emitter.distribute();
-    // blend_fixture.backstop.gulp_emissions();
-    // pool_client.gulp_emissions();
 
     // admin joins pool
     let requests = vec![
@@ -250,8 +248,7 @@ pub fn create_mock_oracle<'a>(e: &Env) -> (Address, MockPriceOracleClient<'a>) {
 /// Mock pool to test b_rate updates
 pub mod mockpool {
 
-    use super::*;
-    use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Symbol};
+    use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Env, Symbol};
 
     const BRATE: Symbol = symbol_short!("b_rate");
     #[derive(Clone)]
@@ -278,6 +275,10 @@ pub mod mockpool {
 
     #[contractimpl]
     impl MockPool {
+        pub fn __constructor(e: Env, b_rate: i128) {
+            e.storage().instance().set(&BRATE, &b_rate);
+        }
+
         pub fn set_b_rate(e: Env, b_rate: i128) {
             e.storage().instance().set(&BRATE, &b_rate);
         }
@@ -304,10 +305,8 @@ pub mod mockpool {
         }
     }
 
-    pub fn register_mock_pool_with_b_rate(e: &Env, b_rate: i128) -> mockpool::MockPoolClient {
-        let pool_address = e.register(mockpool::MockPool {}, ());
-        let client = mockpool::MockPoolClient::new(e, &pool_address);
-        client.set_b_rate(&b_rate);
-        client
+    pub fn register_mock_pool_with_b_rate(e: &Env, b_rate: i128) -> MockPoolClient {
+        let pool_address = e.register(MockPool {}, (b_rate,));
+        MockPoolClient::new(e, &pool_address)
     }
 }
