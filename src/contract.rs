@@ -174,7 +174,7 @@ impl FeeVault {
                 &reserve_address,
                 &ReserveVault {
                     address: reserve_address.clone(),
-                    b_rate: 1_000_000_000,
+                    b_rate: pool::reserve_b_rate(&e, &reserve_address),
                     total_shares: 0,
                     total_b_tokens: 0,
                     accrued_fees: 0,
