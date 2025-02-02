@@ -69,7 +69,7 @@ pub fn claim(e: &Env, reserve_token_ids: &Vec<u32>, to: &Address) -> i128 {
 /// ### Returns
 /// * `i128` - The b_rate of the reserve
 pub fn reserve_b_rate(e: &Env, reserve: &Address) -> i128 {
-    get_pool_client(&e).get_reserve(reserve).b_rate
+    get_pool_client(&e).get_reserve(reserve).data.b_rate
 }
 
 fn get_pool_client(e: &Env) -> PoolClient {
