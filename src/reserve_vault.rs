@@ -1,5 +1,8 @@
-use crate::constants::{SCALAR_7, SCALAR_9};
-use crate::{errors::FeeVaultError, pool, storage};
+use crate::{
+    constants::{SCALAR_7, SCALAR_9},
+    errors::FeeVaultError,
+    pool, storage,
+};
 use soroban_fixed_point_math::{i128, FixedPoint};
 use soroban_sdk::{contracttype, panic_with_error, Address, Env};
 
@@ -54,6 +57,33 @@ impl ReserveVault {
         amount.fixed_mul_floor(self.b_rate, SCALAR_9).unwrap()
     }
 
+    /// Coverts a b_token amount to an underlying token amount rounding up
+    ///
+    /// ### Note
+    /// This function performs the calculations based on the last observed b_rate.
+    /// If `update_rate` hasn't been invoked in the same ledger, it may yield incorrect results.
+    pub fn b_tokens_to_underlying_up(&self, amount: i128) -> i128 {
+        amount.fixed_mul_ceil(self.b_rate, SCALAR_9).unwrap()
+    }
+
+    /// Coverts an underlying amount to a b_token amount rounding down
+    ///
+    /// ### Note
+    /// This function performs the calculations based on the last observed b_rate.
+    /// If `update_rate` hasn't been invoked in the same ledger, it may yield incorrect results.
+    pub fn underlying_to_b_tokens_down(&self, amount: i128) -> i128 {
+        amount.fixed_div_floor(self.b_rate, SCALAR_9).unwrap()
+    }
+
+    /// Coverts an underlying amount to a b_token amount rounding up
+    ///
+    /// ### Note
+    /// This function performs the calculations based on the last observed b_rate.
+    /// If `update_rate` hasn't been invoked in the same ledger, it may yield incorrect results.
+    pub fn underlying_to_b_tokens_up(&self, amount: i128) -> i128 {
+        amount.fixed_div_ceil(self.b_rate, SCALAR_9).unwrap()
+    }
+
     /// Updates the reserve's bRate and accrues fees to the admin in accordance with the portion of interest they earned
     fn update_rate(&mut self, e: &Env) {
         let new_rate = pool::reserve_b_rate(e, &self.address);
@@ -84,25 +114,25 @@ impl ReserveVault {
     }
 }
 
-/// Deposit into the reserve vault. This function expects the deposit to have already been made
-/// into the pool, and accounts for the deposit in the reserve vault.
+/// Deposit into the reserve vault. Does not perform the call to the pool to deposit the tokens.
 ///
 /// ### Arguments
 /// * `vault` - The reserve vault to deposit into
 /// * `user` - The user that deposited the tokens
-/// * `b_tokens_amount` - The amount of bTokens minted to the vault
-/// * `new_rate` - The latest b_rate as reported by the blend pool
+/// * `amount` - The amount of underlying deposited
 ///
 /// ### Returns
-/// * `i128` - The amount of shares minted
+/// * `(i128, i128)` - (The amount of b_tokens minted to the vault, the amount of shares minted to the user)
 ///
 /// ### Panics
-/// * If the bTokens amount is less than or equal to 0
-pub fn deposit(e: &Env, mut vault: ReserveVault, user: &Address, b_tokens_amount: i128) -> i128 {
-    if b_tokens_amount <= 0 {
-        panic_with_error!(e, FeeVaultError::InvalidBTokensMinted);
+/// * If the underlying amount is less than or equal to 0
+pub fn deposit(e: &Env, mut vault: ReserveVault, user: &Address, amount: i128) -> (i128, i128) {
+    if amount <= 0 {
+        panic_with_error!(e, FeeVaultError::InvalidAmount);
     }
+
     vault.update_rate(e);
+    let b_tokens_amount = vault.underlying_to_b_tokens_down(amount);
 
     let mut user_shares = storage::get_reserve_vault_shares(e, &vault.address, user);
     let share_amount = vault.b_tokens_to_shares_down(b_tokens_amount);
@@ -111,29 +141,28 @@ pub fn deposit(e: &Env, mut vault: ReserveVault, user: &Address, b_tokens_amount
     user_shares += share_amount;
     storage::set_reserve_vault(e, &vault.address, &vault);
     storage::set_reserve_vault_shares(e, &vault.address, user, user_shares);
-    share_amount
+    (b_tokens_amount, share_amount)
 }
 
-/// Withdraw from the reserve vault. This function expects the withdraw to have already been made
-/// from the pool, and only accounts for the withdraw from the reserve vault.
+/// Withdraw from the reserve vault. Does not perform the call to the pool to withdraw the tokens.
 ///
 /// ### Arguments
 /// * `vault` - The reserve vault to deposit into
 /// * `user` - The user withdrawing tokens
-/// * `b_tokens_amount` - The amount of bTokens burnt from the vault
-/// * `new_rate` - The latest b_rate as reported by the blend pool
+/// * `amount` - The amount of underlying amount withdrawn from the vault
 ///
 /// ### Returns
-/// * `i128` - The amount of shares burnt
+/// * `(i128, i128)` - (The amount of b_tokens burned from the vault, the amount of shares burned from the user)
 ///
 /// ### Panics
-/// * If the bTokens amount is less than or equal to 0
-/// * If the user does not have enough shares to withdraw
-pub fn withdraw(e: &Env, mut vault: ReserveVault, user: &Address, b_tokens_amount: i128) -> i128 {
-    if b_tokens_amount <= 0 {
-        panic_with_error!(e, FeeVaultError::InvalidBTokensBurnt);
+/// * If the amount is less than or equal to 0
+/// * If the user does not have enough shares or bTokens to withdraw
+pub fn withdraw(e: &Env, mut vault: ReserveVault, user: &Address, amount: i128) -> (i128, i128) {
+    if amount <= 0 {
+        panic_with_error!(e, FeeVaultError::InvalidAmount);
     }
     vault.update_rate(e);
+    let b_tokens_amount = vault.underlying_to_b_tokens_up(amount);
 
     let mut user_shares = storage::get_reserve_vault_shares(e, &vault.address, user);
     let share_amount = vault.b_tokens_to_shares_up(b_tokens_amount);
@@ -148,30 +177,27 @@ pub fn withdraw(e: &Env, mut vault: ReserveVault, user: &Address, b_tokens_amoun
     user_shares -= share_amount;
     storage::set_reserve_vault(e, &vault.address, &vault);
     storage::set_reserve_vault_shares(e, &vault.address, user, user_shares);
-    share_amount
+    (b_tokens_amount, share_amount)
 }
 
-/// Claim fees from the reserve vault. This function expects the withdraw to have already been made
-/// from the pool, and only accounts for the claim from the reserve vault.
+/// Claim fees from the reserve vault. Does not perform the call to the pool to claim the fees.
 ///
 /// ### Arguments
 /// * `vault` - The reserve vault to deposit into
-/// * `b_tokens_amount` - The amount of bTokens burnt from the vault
-/// * `new_rate` - The latest b_rate as reported by the blend pool
 ///
 /// ### Panics
-/// * If the bTokens amount is less than or equal to 0
-/// * If their are insufficient fees to claim
-pub fn claim_fees(e: &Env, mut vault: ReserveVault, b_tokens_amount: i128) {
+/// * If the accrued bToken amount is less than or equal to 0
+pub fn claim_fees(e: &Env, mut vault: ReserveVault) -> (i128, i128) {
+    vault.update_rate(e);
+    let b_tokens_amount = vault.accrued_fees;
     if b_tokens_amount <= 0 {
         panic_with_error!(e, FeeVaultError::InvalidBTokensBurnt);
     }
-    vault.update_rate(e);
-    if b_tokens_amount > vault.accrued_fees {
-        panic_with_error!(e, FeeVaultError::InsufficientAccruedFees);
-    }
-    vault.accrued_fees -= b_tokens_amount;
+
+    let underlying_amount = vault.b_tokens_to_underlying_down(b_tokens_amount);
+    vault.accrued_fees = 0;
     storage::set_reserve_vault(e, &vault.address, &vault);
+    (b_tokens_amount, underlying_amount)
 }
 
 /// Converts a b_token amount to an underlying amount using the provided b_rate
@@ -538,7 +564,7 @@ mod tests {
             let new_b_rate = 1_110_000_000;
             let expected_b_token_fees = 0_9009009;
             let b_tokens = 5_5000000;
-            claim_fees(&e, reserve_vault, b_tokens);
+            claim_fees(&e, reserve_vault);
 
             // Load the updated reserve to verify the changes
             let new_vault = storage::get_reserve_vault(&e, &reserve);
@@ -575,7 +601,7 @@ mod tests {
             };
             storage::set_reserve_vault(&e, &reserve, &reserve_vault);
 
-            claim_fees(&e, reserve_vault, 0);
+            claim_fees(&e, reserve_vault);
         });
     }
 
@@ -603,7 +629,7 @@ mod tests {
             let new_b_rate = 1_110_000_000;
             let expected_b_token_fees = 0_9009009;
             let b_tokens = 5_0000000 + expected_b_token_fees + 1;
-            claim_fees(&e, reserve_vault, b_tokens);
+            claim_fees(&e, reserve_vault);
         });
     }
 }

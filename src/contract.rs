@@ -213,15 +213,16 @@ impl FeeVault {
     /// ### Panics
     /// * `InsufficientAccruedFees` - If more b_tokens are withdrawn than accrued via fees
     /// * `ReserveNotFound` - If the reserve does not have a vault
-    pub fn claim_fees(e: Env, reserve: Address, to: Address, amount: i128) -> i128 {
+    pub fn claim_fees(e: Env, reserve: Address, to: Address) -> i128 {
         let admin = storage::get_admin(&e);
         admin.require_auth();
 
         let vault = storage::get_reserve_vault(&e, &reserve);
 
-        let (tokens_withdrawn, b_tokens_burnt) = pool::withdraw(&e, &reserve, &to, amount);
-        reserve_vault::claim_fees(&e, vault, b_tokens_burnt);
-        FeeVaultEvents::vault_fee_claim(&e, &reserve, &admin, tokens_withdrawn, b_tokens_burnt);
+        let (b_tokens_burnt, amount) = reserve_vault::claim_fees(&e, vault);
+        pool::withdraw(&e, &reserve, &to, amount);
+
+        FeeVaultEvents::vault_fee_claim(&e, &reserve, &admin, amount, b_tokens_burnt);
         b_tokens_burnt
     }
 
@@ -245,8 +246,8 @@ impl FeeVault {
 
         let vault = storage::get_reserve_vault(&e, &reserve);
 
-        let b_tokens_minted = pool::supply(&e, &reserve, &user, amount);
-        let new_shares = reserve_vault::deposit(&e, vault, &user, b_tokens_minted);
+        pool::supply(&e, &reserve, &user, amount);
+        let (b_tokens_minted, new_shares) = reserve_vault::deposit(&e, vault, &user, amount);
         FeeVaultEvents::vault_deposit(&e, &reserve, &user, amount, new_shares, b_tokens_minted);
         new_shares
     }
@@ -269,16 +270,9 @@ impl FeeVault {
         user.require_auth();
 
         let vault = storage::get_reserve_vault(&e, &reserve);
-        let (tokens_withdrawn, b_tokens_burnt) = pool::withdraw(&e, &reserve, &user, amount);
-        let burnt_shares = reserve_vault::withdraw(&e, vault, &user, b_tokens_burnt);
-        FeeVaultEvents::vault_withdraw(
-            &e,
-            &reserve,
-            &user,
-            tokens_withdrawn,
-            burnt_shares,
-            b_tokens_burnt,
-        );
+        pool::withdraw(&e, &reserve, &user, amount);
+        let (b_tokens_burnt, burnt_shares) = reserve_vault::withdraw(&e, vault, &user, amount);
+        FeeVaultEvents::vault_withdraw(&e, &reserve, &user, amount, burnt_shares, b_tokens_burnt);
         burnt_shares
     }
 }
