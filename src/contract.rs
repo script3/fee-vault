@@ -1,5 +1,4 @@
 use crate::{
-    constants::MIN_DUST,
     errors::FeeVaultError,
     events::FeeVaultEvents,
     pool,
@@ -183,11 +182,7 @@ impl FeeVault {
     pub fn claim_fees(e: Env, reserve: Address, to: Address, amount: i128) -> i128 {
         let admin = storage::get_admin(&e);
         admin.require_auth();
-        // protect against rouding of reserve_vault::update_rate, as small amounts
-        // can cause incorrect b_rate calculations due to the pool rounding
-        if amount < MIN_DUST {
-            panic_with_error!(&e, FeeVaultError::InvalidAmount);
-        }
+
         let vault = storage::get_reserve_vault(&e, &reserve);
         let new_b_rate = pool::reserve_b_rate(&e, &reserve);
 
@@ -214,11 +209,7 @@ impl FeeVault {
     /// * `ReserveNotFound` - If the reserve does not have a vault
     pub fn deposit(e: Env, reserve: Address, user: Address, amount: i128) -> i128 {
         user.require_auth();
-        // protect against rouding of reserve_vault::update_rate, as small amounts
-        // can cause incorrect b_rate calculations due to the pool rounding
-        if amount < MIN_DUST {
-            panic_with_error!(&e, FeeVaultError::InvalidAmount);
-        }
+
         let vault = storage::get_reserve_vault(&e, &reserve);
         let new_b_rate = pool::reserve_b_rate(&e, &reserve);
 
@@ -244,11 +235,7 @@ impl FeeVault {
     /// * `ReserveNotFound` - If the reserve does not have a vault
     pub fn withdraw(e: Env, reserve: Address, user: Address, amount: i128) -> i128 {
         user.require_auth();
-        // protect against rouding of reserve_vault::update_rate, as small amounts
-        // can cause incorrect b_rate calculations due to the pool rounding
-        if amount < MIN_DUST {
-            panic_with_error!(&e, FeeVaultError::InvalidAmount);
-        }
+
         let vault = storage::get_reserve_vault(&e, &reserve);
         let new_b_rate = pool::reserve_b_rate(&e, &reserve);
         let (tokens_withdrawn, b_tokens_burnt) = pool::withdraw(&e, &vault, &user, amount);
