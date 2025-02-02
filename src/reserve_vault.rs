@@ -190,6 +190,7 @@ pub fn b_tokens_to_underlying(e: &Env, vault: &mut ReserveVault, b_tokens_amount
     vault.b_tokens_to_underlying_down(b_tokens_amount)
 }
 
+/// Note: Test suite is temporarily broken. Will be updated with full blend integration
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -305,7 +306,7 @@ mod tests {
             let b_tokens = 83_3333300;
             let expected_b_token_fees = 0_9009009;
             let expected_share_amount = 100_0901673;
-            deposit(&e, reserve_vault, &samwise, b_tokens, new_b_rate);
+            deposit(&e, reserve_vault, &samwise, b_tokens);
 
             // Load the updated reserve to verify the changes
             let new_vault = storage::get_reserve_vault(&e, &reserve);
@@ -345,7 +346,7 @@ mod tests {
             // Perform a deposit for samwise
             let new_b_rate = 1_100_000_000;
             let b_tokens = 80_0000000;
-            deposit(&e, reserve_vault, &samwise, b_tokens, new_b_rate);
+            deposit(&e, reserve_vault, &samwise, b_tokens);
 
             // Load the updated reserve to verify the changes
             let expected_share_amount = b_tokens;
@@ -382,7 +383,7 @@ mod tests {
             };
             storage::set_reserve_vault(&e, &reserve, &reserve_vault);
 
-            deposit(&e, reserve_vault, &samwise, 0, 1_100_000_000);
+            deposit(&e, reserve_vault, &samwise, 0);
         });
     }
 
@@ -412,7 +413,7 @@ mod tests {
             let expected_share_amount = 100_0901674;
             let expected_b_token_fees = 0_9009009;
             storage::set_reserve_vault_shares(&e, &reserve, &samwise, expected_share_amount);
-            withdraw(&e, reserve_vault, &samwise, b_tokens, new_b_rate);
+            withdraw(&e, reserve_vault, &samwise, b_tokens);
 
             // Load the updated reserve to verify the changes
             let new_vault = storage::get_reserve_vault(&e, &reserve);
@@ -509,7 +510,7 @@ mod tests {
             let b_tokens = 83_3333300;
             let expected_share_amount = 100_0901674;
             storage::set_reserve_vault_shares(&e, &reserve, &samwise, expected_share_amount - 1);
-            withdraw(&e, reserve_vault, &samwise, b_tokens, new_b_rate);
+            withdraw(&e, reserve_vault, &samwise, b_tokens);
         });
     }
 
@@ -537,7 +538,7 @@ mod tests {
             let new_b_rate = 1_110_000_000;
             let expected_b_token_fees = 0_9009009;
             let b_tokens = 5_5000000;
-            claim_fees(&e, reserve_vault, b_tokens, new_b_rate);
+            claim_fees(&e, reserve_vault, b_tokens);
 
             // Load the updated reserve to verify the changes
             let new_vault = storage::get_reserve_vault(&e, &reserve);
@@ -574,7 +575,7 @@ mod tests {
             };
             storage::set_reserve_vault(&e, &reserve, &reserve_vault);
 
-            claim_fees(&e, reserve_vault, 0, 1_100_000_000);
+            claim_fees(&e, reserve_vault, 0);
         });
     }
 
@@ -602,7 +603,7 @@ mod tests {
             let new_b_rate = 1_110_000_000;
             let expected_b_token_fees = 0_9009009;
             let b_tokens = 5_0000000 + expected_b_token_fees + 1;
-            claim_fees(&e, reserve_vault, b_tokens, new_b_rate);
+            claim_fees(&e, reserve_vault, b_tokens);
         });
     }
 }
