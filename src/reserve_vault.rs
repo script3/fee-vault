@@ -1003,4 +1003,32 @@ mod take_rate_tests {
             assert_eq!(reserve_vault.last_update_timestamp, now);
         });
     }
+
+    #[test]
+    fn test_update_rate_different_timestamp_same_brate() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let vault_address = register_fee_vault(&e, None);
+
+        e.as_contract(&vault_address, || {
+            let now = e.ledger().timestamp();
+            let mut reserve_vault = ReserveVault {
+                address: Address::generate(&e),
+                total_b_tokens: 1000_0000000,
+                total_shares: 1200_0000000,
+                b_rate: 1_100_000_000_000,
+                last_update_timestamp: now,
+                accrued_fees: 12_0000000,
+            };
+
+            reserve_vault.update_rate(&e);
+            // assert nothing changes
+            assert_eq!(reserve_vault.accrued_fees, reserve_vault.accrued_fees);
+            assert_eq!(reserve_vault.total_shares, reserve_vault.total_shares);
+            assert_eq!(reserve_vault.total_b_tokens, reserve_vault.total_b_tokens);
+            assert_eq!(reserve_vault.b_rate, reserve_vault.b_rate);
+            assert_eq!(reserve_vault.last_update_timestamp, now);
+        });
+    }
 }

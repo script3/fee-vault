@@ -21,7 +21,7 @@ pub(crate) fn register_fee_vault(
         FeeVault {},
         constructor_args.unwrap_or((
             Address::generate(e),
-            mockpool::register_mock_pool_with_b_rate(e, 1_100_000_000).address,
+            mockpool::register_mock_pool_with_b_rate(e, 1_100_000_000_000).address,
             false,
             0_1000000,
         )),
