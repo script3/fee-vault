@@ -48,7 +48,7 @@ impl ReserveVault {
     }
 
     /// Updates the reserve's bRate and accrues fees to the admin in accordance with the portion of interest they earned
-    fn update_rate(&mut self, e: &Env, new_rate: i128) {
+    pub fn update_rate(&mut self, e: &Env, new_rate: i128) {
         if new_rate == self.b_rate {
             return;
         }
