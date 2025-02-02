@@ -122,7 +122,9 @@ impl FeeVault {
     /// ### Panics
     /// * `ReserveNotFound` - If the reserve does not exist
     pub fn get_reserve_vault(e: Env, reserve: Address) -> ReserveVault {
-        storage::get_reserve_vault(&e, &reserve)
+        let mut vault = storage::get_reserve_vault(&e, &reserve);
+        vault.update_rate(&e);
+        vault
     }
 
     //********** Read-Write Admin Only ***********//
