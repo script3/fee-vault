@@ -50,37 +50,21 @@ impl ReserveVault {
     }
 
     /// Coverts a b_token amount to an underlying token amount rounding down
-    ///
-    /// ### Note
-    /// This function performs the calculations based on the last observed b_rate.
-    /// If `update_rate` hasn't been invoked in the same ledger, it may yield incorrect results.
     pub fn b_tokens_to_underlying_down(&self, amount: i128) -> i128 {
         amount.fixed_mul_floor(self.b_rate, SCALAR_9).unwrap()
     }
 
     /// Coverts a b_token amount to an underlying token amount rounding up
-    ///
-    /// ### Note
-    /// This function performs the calculations based on the last observed b_rate.
-    /// If `update_rate` hasn't been invoked in the same ledger, it may yield incorrect results.
     pub fn b_tokens_to_underlying_up(&self, amount: i128) -> i128 {
         amount.fixed_mul_ceil(self.b_rate, SCALAR_9).unwrap()
     }
 
     /// Coverts an underlying amount to a b_token amount rounding down
-    ///
-    /// ### Note
-    /// This function performs the calculations based on the last observed b_rate.
-    /// If `update_rate` hasn't been invoked in the same ledger, it may yield incorrect results.
     pub fn underlying_to_b_tokens_down(&self, amount: i128) -> i128 {
         amount.fixed_div_floor(self.b_rate, SCALAR_9).unwrap()
     }
 
     /// Coverts an underlying amount to a b_token amount rounding up
-    ///
-    /// ### Note
-    /// This function performs the calculations based on the last observed b_rate.
-    /// If `update_rate` hasn't been invoked in the same ledger, it may yield incorrect results.
     pub fn underlying_to_b_tokens_up(&self, amount: i128) -> i128 {
         amount.fixed_div_ceil(self.b_rate, SCALAR_9).unwrap()
     }
