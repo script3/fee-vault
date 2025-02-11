@@ -228,6 +228,16 @@ pub fn claim_fees(e: &Env, reserve: &Address) -> (i128, i128) {
     (b_tokens_amount, underlying_amount)
 }
 
+/// Accrues interest and updates the b_rate for all reserves
+pub fn accrue_interest_for_all_reserves(e: &Env) {
+    let reserves = storage::get_reserves(e);
+
+    for reserve in reserves {
+        let updated_vault = get_reserve_vault_updated(e, &reserve);
+        storage::set_reserve_vault(e, &reserve, &updated_vault);
+    }
+}
+
 #[cfg(test)]
 mod generic_tests {
     use super::*;
