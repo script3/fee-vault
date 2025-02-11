@@ -372,6 +372,125 @@ fn test_set_fee_mode() {
 }
 
 #[test]
+fn test_ensure_b_rate_gets_update_pre_fee_mode_update() {
+    let e = Env::default();
+    e.mock_all_auths();
+    e.set_default_info();
+
+    let samwise = Address::generate(&e);
+    let usdc = Address::generate(&e);
+    let xlm = Address::generate(&e);
+    let init_b_rate = 1_000_000_000_000;
+
+    let mock_client = mockpool::register_mock_pool_with_b_rate(&e, init_b_rate);
+    let vault_address = register_fee_vault(
+        &e,
+        Some((
+            samwise.clone(),
+            mock_client.address.clone(),
+            false,
+            0_1000000,
+        )),
+    );
+    let vault_client = FeeVaultClient::new(&e, &vault_address);
+
+    // Add 2 reserves
+    vault_client.add_reserve_vault(&usdc);
+    vault_client.add_reserve_vault(&xlm);
+    e.as_contract(&vault_address, || {
+        // Ensure both reserves where added and set the total_b_tokens manually
+        // to mock blend-interaction
+        assert_eq!(
+            storage::get_reserves(&e),
+            vec![&e, usdc.clone(), xlm.clone()]
+        );
+        assert!(storage::has_reserve_vault(&e, &usdc));
+        assert!(storage::has_reserve_vault(&e, &xlm));
+
+        storage::set_reserve_vault(
+            &e,
+            &usdc,
+            &ReserveVault {
+                address: usdc.clone(),
+                total_b_tokens: 1000_0000000,
+                total_shares: 1200_0000000,
+                b_rate: init_b_rate,
+                last_update_timestamp: e.ledger().timestamp(),
+                accrued_fees: 0,
+            },
+        );
+
+        storage::set_reserve_vault(
+            &e,
+            &xlm,
+            &ReserveVault {
+                address: xlm.clone(),
+                total_b_tokens: 100_0000000,
+                total_shares: 100_0000000,
+                b_rate: init_b_rate,
+                last_update_timestamp: e.ledger().timestamp(),
+                accrued_fees: 0,
+            },
+        );
+
+        // All the shares are owned by samwise for simplicity
+        storage::set_reserve_vault_shares(&e, &usdc, &samwise, 1200_0000000);
+        storage::set_reserve_vault_shares(&e, &xlm, &samwise, 100_0000000);
+    });
+
+    let usdc_underlying_balance_before = vault_client.get_underlying_tokens(&usdc, &samwise);
+    let xlm_underlying_balance_before = vault_client.get_underlying_tokens(&xlm, &samwise);
+
+    // The pool has doubled in value, but interest hasn't been accrued yet
+    let new_b_rate = 2_000_000_000_000;
+    mockpool::set_b_rate(&e, &mock_client, new_b_rate);
+
+    // Ensure everything is still equal to the initial config pre fee-mode update
+    e.as_contract(&vault_address, || {
+        let usdc_vault = storage::get_reserve_vault(&e, &usdc);
+        assert_eq!(usdc_vault.accrued_fees, 0);
+        assert_eq!(usdc_vault.b_rate, 1_000_000_000_000);
+        assert_ne!(usdc_vault.last_update_timestamp, e.ledger().timestamp());
+
+        let xlm_vault = storage::get_reserve_vault(&e, &xlm);
+        assert_eq!(xlm_vault.accrued_fees, 0);
+        assert_eq!(xlm_vault.b_rate, 1_000_000_000_000);
+        assert_ne!(xlm_vault.last_update_timestamp, e.ledger().timestamp());
+    });
+
+    // Admin tries to take advantage of that by setting the take_rate to 100% to claim all the fees.
+    vault_client.set_fee_mode(&false, &1_000_0000);
+
+    // The previous action shouldn't affect any already accrued rewards
+    let usdc_underlying_balance_after = vault_client.get_underlying_tokens(&usdc, &samwise);
+    let xlm_underlying_balance_after = vault_client.get_underlying_tokens(&xlm, &samwise);
+
+    // The b_rate has doubled and the take_rate was 10%. So we expect 190% increase
+    assert_eq!(
+        usdc_underlying_balance_after,
+        usdc_underlying_balance_before * 19 / 10
+    );
+    assert_eq!(
+        xlm_underlying_balance_after,
+        xlm_underlying_balance_before * 19 / 10
+    );
+
+    // Ensure the stored reserve vaults are also up to date
+    e.as_contract(&vault_address, || {
+        let usdc_vault = storage::get_reserve_vault(&e, &usdc);
+        assert_eq!(usdc_vault.accrued_fees, 500000000);
+        assert_eq!(usdc_vault.b_rate, new_b_rate);
+        assert_eq!(usdc_vault.last_update_timestamp, e.ledger().timestamp());
+        assert_eq!(usdc_vault.total_b_tokens, 1000_0000000 - 500000000);
+
+        let xlm_vault = storage::get_reserve_vault(&e, &xlm);
+        assert_eq!(xlm_vault.accrued_fees, 50000000);
+        assert_eq!(xlm_vault.b_rate, new_b_rate);
+        assert_eq!(xlm_vault.last_update_timestamp, e.ledger().timestamp());
+    });
+}
+
+#[test]
 fn test_set_admin() {
     let e = Env::default();
     e.mock_all_auths();
@@ -454,6 +573,11 @@ fn test_add_reserve_vault() {
         )),
     );
 
+    e.as_contract(&vault_address, || {
+        // Initially the reserves should be empty
+        assert_eq!(storage::get_reserves(&e), vec![&e]);
+    });
+
     let vault_client = FeeVaultClient::new(&e, &vault_address);
 
     // Trying to get the reserve vault before adding it should fail
@@ -486,6 +610,11 @@ fn test_add_reserve_vault() {
     // The init b_rate of the pool at the time of registering the vault was 1.1
     assert_eq!(reserve_info.b_rate, 1_100_000_000_000);
     assert_eq!(reserve_info.accrued_fees, 0);
+
+    e.as_contract(&vault_address, || {
+        // The reserve should also be added to the reserves list
+        assert_eq!(storage::get_reserves(&e), vec![&e, reserve.clone()]);
+    });
 
     // Trying to add a vault for the same reserve should fail
     assert_eq!(

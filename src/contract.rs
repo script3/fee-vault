@@ -150,6 +150,9 @@ impl FeeVault {
             panic_with_error!(&e, FeeVaultError::InvalidFeeModeValue);
         }
 
+        // Accrue interest for all reserves prior to updating the fee-mode, to avoid any retroactive effect
+        reserve_vault::accrue_interest_for_all_reserves(&e);
+
         storage::set_fee_mode(
             &e,
             storage::FeeMode {
@@ -200,6 +203,8 @@ impl FeeVault {
                     accrued_fees: 0,
                 },
             );
+
+            storage::add_reserve_to_reserves(&e, reserve_address.clone());
             FeeVaultEvents::new_reserve_vault(&e, &reserve_address);
         }
     }
