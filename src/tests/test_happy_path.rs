@@ -1,11 +1,11 @@
 #![cfg(test)]
 
-use crate::constants::{MIN_DUST, SCALAR_7};
+use crate::constants::SCALAR_7;
 use crate::storage::ONE_DAY_LEDGERS;
 use crate::testutils::{create_blend_pool, create_fee_vault, EnvTestUtils};
 use crate::FeeVaultClient;
-use blend_contract_sdk::testutils::BlendFixture;
 use blend_contract_sdk::pool::{Client as PoolClient, Request};
+use blend_contract_sdk::testutils::BlendFixture;
 use sep_41_token::testutils::MockTokenClient;
 use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::testutils::{Address as _, AuthorizedFunction, AuthorizedInvocation};
@@ -14,7 +14,7 @@ use soroban_sdk::{vec, Address, Env, Error, IntoVal, Symbol};
 #[test]
 fn test_happy_path() {
     let e = Env::default();
-    e.budget().reset_unlimited();
+    e.cost_estimate().budget().reset_unlimited();
     e.mock_all_auths();
     e.set_default_info();
 
@@ -24,9 +24,15 @@ fn test_happy_path() {
     let samwise = Address::generate(&e);
     let merry = Address::generate(&e);
 
-    let blnd = e.register_stellar_asset_contract(bombadil.clone());
-    let usdc = e.register_stellar_asset_contract(bombadil.clone());
-    let xlm = e.register_stellar_asset_contract(bombadil.clone());
+    let blnd = e
+        .register_stellar_asset_contract_v2(bombadil.clone())
+        .address();
+    let usdc = e
+        .register_stellar_asset_contract_v2(bombadil.clone())
+        .address();
+    let xlm = e
+        .register_stellar_asset_contract_v2(bombadil.clone())
+        .address();
     let blnd_client = MockTokenClient::new(&e, &blnd);
     let usdc_client = MockTokenClient::new(&e, &usdc);
     let xlm_client = MockTokenClient::new(&e, &xlm);
@@ -41,7 +47,7 @@ fn test_happy_path() {
     let fee_vault = create_fee_vault(&e, &bombadil, &pool);
     let fee_vault_client = FeeVaultClient::new(&e, &fee_vault);
 
-    fee_vault_client.add_reserve_vault(&0, &usdc);
+    fee_vault_client.add_reserve_vault(&usdc);
     // -> verify add reserve vault auth
     assert_eq!(
         e.auths()[0],
@@ -51,7 +57,7 @@ fn test_happy_path() {
                 function: AuthorizedFunction::Contract((
                     fee_vault.clone(),
                     Symbol::new(&e, "add_reserve_vault"),
-                    vec![&e, 0_u32.into_val(&e), usdc.to_val(),]
+                    vec![&e, usdc.to_val(),]
                 )),
                 sub_invocations: std::vec![]
             }
@@ -88,8 +94,6 @@ fn test_happy_path() {
             }
         )
     );
-
-    fee_vault_client.set_take_rate(&0_1000000);
 
     /*
      * Deposit into pool
@@ -287,11 +291,11 @@ fn test_happy_path() {
     assert_eq!(fee_vault_client.get_shares(&usdc, &samwise), 0);
 
     // -> verify withdraw from uninitialized vault fails
-    let result = fee_vault_client.try_withdraw(&xlm, &samwise, &MIN_DUST);
+    let result = fee_vault_client.try_withdraw(&xlm, &samwise, &1);
     assert_eq!(result.err(), Some(Ok(Error::from_contract_error(100))));
 
     // -> verify withdraw from empty vault fails
-    let result = fee_vault_client.try_withdraw(&usdc, &samwise, &MIN_DUST);
+    let result = fee_vault_client.try_withdraw(&usdc, &samwise, &1);
     assert_eq!(result.err(), Some(Ok(Error::from_contract_error(105))));
 
     /*
@@ -302,7 +306,7 @@ fn test_happy_path() {
 
     // claim fees for usdc. There is a rounding loss of 1 stroop.
     let expected_fees = merry_profit.fixed_mul_floor(0_1000000, SCALAR_7).unwrap() - 1;
-    fee_vault_client.claim_fees(&usdc, &gandalf, &expected_fees);
+    fee_vault_client.claim_fees(&usdc, &gandalf);
 
     // -> verify claim fees auth
     assert_eq!(
@@ -313,12 +317,7 @@ fn test_happy_path() {
                 function: AuthorizedFunction::Contract((
                     fee_vault.clone(),
                     Symbol::new(&e, "claim_fees"),
-                    vec![
-                        &e,
-                        usdc.to_val(),
-                        gandalf.to_val(),
-                        expected_fees.into_val(&e),
-                    ]
+                    vec![&e, usdc.to_val(), gandalf.to_val(),]
                 )),
                 sub_invocations: std::vec![]
             }

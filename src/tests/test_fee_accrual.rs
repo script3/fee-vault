@@ -1,11 +1,11 @@
 #![cfg(test)]
 
-use crate::constants::{SCALAR_7, SCALAR_9};
+use crate::constants::{SCALAR_12, SCALAR_7};
 use crate::storage::ONE_DAY_LEDGERS;
 use crate::testutils::{assert_approx_eq_rel, create_blend_pool, create_fee_vault, EnvTestUtils};
 use crate::FeeVaultClient;
-use blend_contract_sdk::testutils::BlendFixture;
 use blend_contract_sdk::pool::{Client as PoolClient, Request};
+use blend_contract_sdk::testutils::BlendFixture;
 use sep_41_token::testutils::MockTokenClient;
 use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::testutils::{Address as _, Ledger, LedgerInfo};
@@ -14,11 +14,11 @@ use soroban_sdk::{vec, Address, Env};
 #[test]
 fn test_fee_accrual() {
     let e = Env::default();
-    e.budget().reset_unlimited();
+    e.cost_estimate().budget().reset_unlimited();
     e.mock_all_auths();
     e.ledger().set(LedgerInfo {
         timestamp: 1441065600, // Sept 1st, 2015 12:00:00 AM UTC
-        protocol_version: 20,
+        protocol_version: 22,
         sequence_number: 100,
         network_id: Default::default(),
         base_reserve: 10,
@@ -33,9 +33,15 @@ fn test_fee_accrual() {
     let samwise = Address::generate(&e);
     let merry = Address::generate(&e);
 
-    let blnd = e.register_stellar_asset_contract(bombadil.clone());
-    let usdc = e.register_stellar_asset_contract(bombadil.clone());
-    let xlm = e.register_stellar_asset_contract(bombadil.clone());
+    let blnd = e
+        .register_stellar_asset_contract_v2(bombadil.clone())
+        .address();
+    let usdc = e
+        .register_stellar_asset_contract_v2(bombadil.clone())
+        .address();
+    let xlm = e
+        .register_stellar_asset_contract_v2(bombadil.clone())
+        .address();
     let usdc_client = MockTokenClient::new(&e, &usdc);
     let xlm_client = MockTokenClient::new(&e, &xlm);
 
@@ -49,9 +55,9 @@ fn test_fee_accrual() {
     let fee_vault = create_fee_vault(&e, &bombadil, &pool);
     let fee_vault_client = FeeVaultClient::new(&e, &fee_vault);
 
-    fee_vault_client.add_reserve_vault(&0, &usdc);
-    fee_vault_client.add_reserve_vault(&1, &xlm);
-    fee_vault_client.set_take_rate(&0_1000000);
+    fee_vault_client.add_reserve_vault(&usdc);
+    fee_vault_client.add_reserve_vault(&xlm);
+    fee_vault_client.set_fee_mode(&false, &0_1000000);
 
     /*
      * Deposit into pool
@@ -220,7 +226,7 @@ fn test_fee_accrual() {
     let usdc_vault = fee_vault_client.get_reserve_vault(&usdc);
     let usdc_withdrawal_amount = usdc_vault
         .shares_to_b_tokens_down(starting_balance)
-        .fixed_mul_floor(usdc_vault.b_rate, SCALAR_9)
+        .fixed_mul_floor(usdc_vault.b_rate, SCALAR_12)
         .unwrap();
     let frodo_profit_usdc = usdc_withdrawal_amount - starting_balance;
     // let frodo_profit_usdc = 4_7207977;
@@ -242,7 +248,7 @@ fn test_fee_accrual() {
     let xlm_vault = fee_vault_client.get_reserve_vault(&xlm);
     let xlm_withdrawal_amount = xlm_vault
         .shares_to_b_tokens_down(starting_balance)
-        .fixed_mul_floor(xlm_vault.b_rate, SCALAR_9)
+        .fixed_mul_floor(xlm_vault.b_rate, SCALAR_12)
         .unwrap();
     let frodo_profit_xlm = xlm_withdrawal_amount - starting_balance;
     // let frodo_profit_xlm = 4_7300002;
@@ -267,9 +273,9 @@ fn test_fee_accrual() {
     let pre_claim_usdc = usdc_client.balance(&bombadil);
     let admin_usdc_fees = usdc_vault
         .accrued_fees
-        .fixed_mul_floor(usdc_vault.b_rate, SCALAR_9)
+        .fixed_mul_floor(usdc_vault.b_rate, SCALAR_12)
         .unwrap();
-    fee_vault_client.claim_fees(&usdc, &bombadil, &admin_usdc_fees);
+    fee_vault_client.claim_fees(&usdc, &bombadil);
     assert_eq!(
         usdc_client.balance(&bombadil),
         admin_usdc_fees + pre_claim_usdc
@@ -288,10 +294,9 @@ fn test_fee_accrual() {
     let pre_claim_xlm = xlm_client.balance(&bombadil);
     let admin_xlm_fees = xlm_vault
         .accrued_fees
-        .fixed_mul_floor(xlm_vault.b_rate, SCALAR_9)
-        .unwrap()
-        - 10;
-    fee_vault_client.claim_fees(&xlm, &bombadil, &admin_xlm_fees);
+        .fixed_mul_floor(xlm_vault.b_rate, SCALAR_12)
+        .unwrap();
+    fee_vault_client.claim_fees(&xlm, &bombadil);
     assert_eq!(
         xlm_client.balance(&bombadil),
         admin_xlm_fees + pre_claim_xlm

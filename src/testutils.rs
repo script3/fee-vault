@@ -1,12 +1,10 @@
 #![cfg(test)]
 
-use crate::{
-    constants::SCALAR_7,
-    storage::ONE_DAY_LEDGERS,
-    FeeVault, FeeVaultClient,
+use crate::{constants::SCALAR_7, storage::ONE_DAY_LEDGERS, FeeVault};
+use blend_contract_sdk::pool::{
+    Client as PoolClient, Request, ReserveConfig, ReserveEmissionMetadata,
 };
 use blend_contract_sdk::testutils::BlendFixture;
-use blend_contract_sdk::pool::{Client as PoolClient, Request, ReserveConfig, ReserveEmissionMetadata};
 use sep_41_token::testutils::MockTokenClient;
 use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::{
@@ -14,8 +12,20 @@ use soroban_sdk::{
     vec, Address, BytesN, Env, String, Symbol,
 };
 
-pub(crate) fn register_fee_vault(e: &Env) -> Address {
-    e.register_contract(None, FeeVault {})
+// Defaults to a mock pool with a b_rate of 1_100_000_000 and a take_rate of 0_1000000.
+pub(crate) fn register_fee_vault(
+    e: &Env,
+    constructor_args: Option<(Address, Address, bool, i128)>,
+) -> Address {
+    e.register(
+        FeeVault {},
+        constructor_args.unwrap_or((
+            Address::generate(e),
+            mockpool::register_mock_pool_with_b_rate(e, 1_100_000_000_000).address,
+            false,
+            0_1000000,
+        )),
+    )
 }
 
 pub(crate) fn create_blend_pool(
@@ -69,6 +79,8 @@ pub(crate) fn create_blend_pool(
         r_two: 0,
         r_three: 0,
         util: 0,
+        collateral_cap: 170_141_183_460_469_231_731_687_303_715_884_105_727,
+        enabled: true,
     };
     pool_client.queue_set_reserve(&usdc.address, &reserve_config);
     pool_client.set_reserve(&usdc.address);
@@ -99,13 +111,11 @@ pub(crate) fn create_blend_pool(
     ];
     pool_client.set_emissions_config(&emission_config);
     pool_client.set_status(&0);
-    blend_fixture.backstop.add_reward(&pool, &pool);
+    blend_fixture.backstop.add_reward(&pool, &None);
 
     // wait a week and start emissions
     e.jump(ONE_DAY_LEDGERS * 7);
     blend_fixture.emitter.distribute();
-    blend_fixture.backstop.gulp_emissions();
-    pool_client.gulp_emissions();
 
     // admin joins pool
     let requests = vec![
@@ -139,10 +149,7 @@ pub(crate) fn create_blend_pool(
 
 /// Create a fee vault
 pub(crate) fn create_fee_vault(e: &Env, admin: &Address, pool: &Address) -> Address {
-    let address = register_fee_vault(e);
-    let client = FeeVaultClient::new(e, &address);
-    client.initialize(&admin, &pool, &100_0000);
-    address
+    register_fee_vault(e, Some((admin.clone(), pool.clone(), false, 100_0000)))
 }
 
 pub trait EnvTestUtils {
@@ -163,7 +170,7 @@ impl EnvTestUtils for Env {
     fn jump(&self, ledgers: u32) {
         self.ledger().set(LedgerInfo {
             timestamp: self.ledger().timestamp().saturating_add(ledgers as u64 * 5),
-            protocol_version: 20,
+            protocol_version: 22,
             sequence_number: self.ledger().sequence().saturating_add(ledgers),
             network_id: Default::default(),
             base_reserve: 10,
@@ -176,7 +183,7 @@ impl EnvTestUtils for Env {
     fn jump_time(&self, seconds: u64) {
         self.ledger().set(LedgerInfo {
             timestamp: self.ledger().timestamp().saturating_add(seconds),
-            protocol_version: 20,
+            protocol_version: 22,
             sequence_number: self.ledger().sequence().saturating_add(1),
             network_id: Default::default(),
             base_reserve: 10,
@@ -189,7 +196,7 @@ impl EnvTestUtils for Env {
     fn set_default_info(&self) {
         self.ledger().set(LedgerInfo {
             timestamp: 1441065600, // Sept 1st, 2015 12:00:00 AM UTC
-            protocol_version: 20,
+            protocol_version: 22,
             sequence_number: 100,
             network_id: Default::default(),
             base_reserve: 10,
@@ -232,9 +239,95 @@ use sep_40_oracle::testutils::{Asset, MockPriceOracleClient, MockPriceOracleWASM
 
 pub fn create_mock_oracle<'a>(e: &Env) -> (Address, MockPriceOracleClient<'a>) {
     let contract_id = Address::generate(e);
-    e.register_contract_wasm(&contract_id, MockPriceOracleWASM);
+    e.register_at(&contract_id, MockPriceOracleWASM, ());
     (
         contract_id.clone(),
         MockPriceOracleClient::new(e, &contract_id),
     )
+}
+
+/// Mock pool to test b_rate updates
+pub mod mockpool {
+
+    use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Env, Symbol};
+
+    use super::EnvTestUtils;
+
+    const BRATE: Symbol = symbol_short!("b_rate");
+    #[derive(Clone, Debug)]
+    #[contracttype]
+    pub struct Reserve {
+        pub asset: Address,        // the underlying asset address
+        pub config: ReserveConfig, // the reserve configuration
+        pub data: ReserveData,     // the reserve data
+        pub scalar: i128,
+    }
+
+    #[derive(Clone, Debug, Default)]
+    #[contracttype]
+    pub struct ReserveConfig {
+        pub index: u32,           // the index of the reserve in the list
+        pub decimals: u32,        // the decimals used in both the bToken and underlying contract
+        pub c_factor: u32, // the collateral factor for the reserve scaled expressed in 7 decimals
+        pub l_factor: u32, // the liability factor for the reserve scaled expressed in 7 decimals
+        pub util: u32,     // the target utilization rate scaled expressed in 7 decimals
+        pub max_util: u32, // the maximum allowed utilization rate scaled expressed in 7 decimals
+        pub r_base: u32, // the R0 value (base rate) in the interest rate formula scaled expressed in 7 decimals
+        pub r_one: u32,  // the R1 value in the interest rate formula scaled expressed in 7 decimals
+        pub r_two: u32,  // the R2 value in the interest rate formula scaled expressed in 7 decimals
+        pub r_three: u32, // the R3 value in the interest rate formula scaled expressed in 7 decimals
+        pub reactivity: u32, // the reactivity constant for the reserve scaled expressed in 7 decimals
+        pub collateral_cap: i128, // the total amount of underlying tokens that can be used as collateral
+        pub enabled: bool,        // the flag of the reserve
+    }
+
+    #[derive(Clone, Debug, Default)]
+    #[contracttype]
+    pub struct ReserveData {
+        pub d_rate: i128,   // the conversion rate from dToken to underlying with 12 decimals
+        pub b_rate: i128,   // the conversion rate from bToken to underlying with 12 decimals
+        pub ir_mod: i128,   // the interest rate curve modifier with 7 decimals
+        pub b_supply: i128, // the total supply of b tokens, in the underlying token's decimals
+        pub d_supply: i128, // the total supply of d tokens, in the underlying token's decimals
+        pub backstop_credit: i128, // the amount of underlying tokens currently owed to the backstop
+        pub last_time: u64, // the last block the data was updated
+    }
+
+    #[contract]
+    pub struct MockPool;
+
+    #[contractimpl]
+    impl MockPool {
+        pub fn __constructor(e: Env, b_rate: i128) {
+            e.storage().instance().set(&BRATE, &b_rate);
+        }
+
+        pub fn set_b_rate(e: Env, b_rate: i128) {
+            e.storage().instance().set(&BRATE, &b_rate);
+        }
+
+        /// Note: We're only interested in the `b_rate`
+        pub fn get_reserve(e: Env, reserve: Address) -> Reserve {
+            let mut r_data = ReserveData::default();
+            r_data.b_rate = e.storage().instance().get(&BRATE).unwrap_or(0);
+            Reserve {
+                asset: reserve,
+                config: ReserveConfig::default(),
+                data: r_data,
+                scalar: 0,
+            }
+        }
+    }
+
+    pub fn register_mock_pool_with_b_rate(e: &Env, b_rate: i128) -> MockPoolClient {
+        let pool_address = e.register(MockPool {}, (b_rate,));
+        MockPoolClient::new(e, &pool_address)
+    }
+
+    /// Updates the mock pool's b_rate and also updates
+    /// the timestamp to make sure `reserve_vault::update_rate` doesn't return early.
+    pub fn set_b_rate(e: &Env, mock_pool_client: &MockPoolClient, b_rate: i128) {
+        e.jump(5);
+        mock_pool_client.set_b_rate(&b_rate);
+    }
 }

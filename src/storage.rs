@@ -6,8 +6,7 @@ use crate::{errors::FeeVaultError, reserve_vault::ReserveVault};
 
 const POOL_KEY: &str = "Pool";
 const ADMIN_KEY: &str = "Admin";
-const IS_INIT_KEY: &str = "IsInit";
-const TAKE_RATE_KEY: &str = "TakeRate";
+const FEE_MODE_KEY: &str = "FeeModeKey";
 
 #[derive(Clone)]
 #[contracttype]
@@ -21,6 +20,13 @@ pub struct DepositKey {
 pub enum FeeVaultDataKey {
     Deposit(DepositKey),
     ResVault(Address),
+}
+
+#[derive(Clone)]
+#[contracttype]
+pub struct FeeMode {
+    pub is_apr_capped: bool, // whether the vault APR is capped
+    pub value: i128,         // the apr_cap value if is_apr_capped, otherwise the admin's take_rate
 }
 
 //********** Storage Utils **********//
@@ -41,18 +47,6 @@ pub fn extend_instance(e: &Env) {
 }
 
 /********** Instance **********/
-
-/// Check if the contract has been initialized
-pub fn get_is_init(e: &Env) -> bool {
-    e.storage().instance().has(&Symbol::new(e, IS_INIT_KEY))
-}
-
-/// Set the contract as initialized
-pub fn set_is_init(e: &Env) {
-    e.storage()
-        .instance()
-        .set::<Symbol, bool>(&Symbol::new(e, IS_INIT_KEY), &true);
-}
 
 /// Get the pool address
 pub fn get_pool(e: &Env) -> Address {
@@ -84,19 +78,19 @@ pub fn set_admin(e: &Env, admin: Address) {
         .set::<Symbol, Address>(&Symbol::new(e, ADMIN_KEY), &admin);
 }
 
-/// Get the take rate for the fee vault
-pub fn get_take_rate(e: &Env) -> i128 {
+/// Get the fee mode for the fee vault
+pub fn get_fee_mode(e: &Env) -> FeeMode {
     e.storage()
         .instance()
-        .get::<Symbol, i128>(&Symbol::new(e, TAKE_RATE_KEY))
+        .get::<Symbol, FeeMode>(&Symbol::new(e, FEE_MODE_KEY))
         .unwrap_optimized()
 }
 
-/// Set the take rate for the fee vault
-pub fn set_take_rate(e: &Env, take_rate: i128) {
+/// Set the fee mode for the fee vault
+pub fn set_fee_mode(e: &Env, mode: FeeMode) {
     e.storage()
         .instance()
-        .set::<Symbol, i128>(&Symbol::new(e, TAKE_RATE_KEY), &take_rate);
+        .set::<Symbol, FeeMode>(&Symbol::new(e, FEE_MODE_KEY), &mode);
 }
 
 /********** Persistent **********/
