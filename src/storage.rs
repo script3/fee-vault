@@ -1,4 +1,6 @@
-use soroban_sdk::{contracttype, panic_with_error, unwrap::UnwrapOptimized, Address, Env, Symbol};
+use soroban_sdk::{
+    contracttype, panic_with_error, unwrap::UnwrapOptimized, vec, Address, Env, Symbol, Vec,
+};
 
 use crate::{errors::FeeVaultError, reserve_vault::ReserveVault};
 
@@ -7,6 +9,7 @@ use crate::{errors::FeeVaultError, reserve_vault::ReserveVault};
 const POOL_KEY: &str = "Pool";
 const ADMIN_KEY: &str = "Admin";
 const FEE_MODE_KEY: &str = "FeeModeKey";
+const RESERVES_KEY: &str = "Reserves";
 
 #[derive(Clone)]
 #[contracttype]
@@ -179,4 +182,40 @@ pub fn set_reserve_vault_shares(e: &Env, reserve: &Address, user: &Address, shar
     e.storage()
         .persistent()
         .extend_ttl(&key, LEDGER_THRESHOLD_USER, LEDGER_BUMP_USER);
+}
+
+/// Set a reserve's vault data
+///
+/// ### Arguments
+/// * `reserve` - The address of the reserve asset
+pub fn add_reserve_to_reserves(e: &Env, reserve: Address) {
+    let key = Symbol::new(e, RESERVES_KEY);
+
+    let mut reserves = get_reserves(e);
+    reserves.push_back(reserve);
+
+    e.storage()
+        .persistent()
+        .set::<Symbol, Vec<Address>>(&key, &reserves);
+    e.storage()
+        .persistent()
+        .extend_ttl(&key, LEDGER_THRESHOLD_USER, LEDGER_BUMP_USER);
+}
+
+/// Get all the supported reserves
+///
+/// Note: Since Blend-v2 supports up to 50 assets,
+/// we know for fact that the Vec fits in a single storage slot
+pub fn get_reserves(e: &Env) -> Vec<Address> {
+    let key = Symbol::new(e, RESERVES_KEY);
+    let result = e.storage().persistent().get::<Symbol, Vec<Address>>(&key);
+    match result {
+        Some(reserves) => {
+            e.storage()
+                .persistent()
+                .extend_ttl(&key, LEDGER_THRESHOLD_USER, LEDGER_BUMP_USER);
+            reserves
+        }
+        None => vec![e],
+    }
 }
