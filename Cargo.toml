@@ -22,7 +22,7 @@ blend-contract-sdk = "2.22.0-beta.2"
 
 [dev-dependencies]
 soroban-sdk = { version = "22.0.4", features = ["testutils"] }
-blend-contract-sdk = { version = "2.22.0-beta.2", features = ["testutils"] }
+blend-contract-sdk = { version = "2.22.0-beta.4", features = ["testutils"] }
 sep-40-oracle = { version = "1.2.0", features = ["testutils"] }
 sep-41-token = { version = " 1.2.0", features = ["testutils"] }
 

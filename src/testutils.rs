@@ -62,6 +62,7 @@ pub(crate) fn create_blend_pool(
         &oracle,
         &0,
         &4,
+        &1_0000000
     );
     let pool_client = PoolClient::new(e, &pool);
     blend_fixture
