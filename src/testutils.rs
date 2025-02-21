@@ -2,7 +2,7 @@
 
 use crate::{constants::SCALAR_7, storage::ONE_DAY_LEDGERS, FeeVault};
 use blend_contract_sdk::pool::{
-    Client as PoolClient, Request, ReserveConfig, ReserveEmissionMetadata,
+    Client as PoolClient, ReserveConfig, ReserveEmissionMetadata,
 };
 use blend_contract_sdk::testutils::BlendFixture;
 use sep_41_token::testutils::MockTokenClient;
@@ -116,40 +116,12 @@ pub(crate) fn create_blend_pool(
     // wait a week and start emissions
     e.jump(ONE_DAY_LEDGERS * 7);
     blend_fixture.emitter.distribute();
-
-    // admin joins pool
-    let requests = vec![
-        e,
-        Request {
-            address: usdc.address.clone(),
-            amount: 200_000_0000000,
-            request_type: 2,
-        },
-        Request {
-            address: usdc.address.clone(),
-            amount: 100_000_0000000,
-            request_type: 4,
-        },
-        Request {
-            address: xlm.address.clone(),
-            amount: 200_000_0000000,
-            request_type: 2,
-        },
-        Request {
-            address: xlm.address.clone(),
-            amount: 100_000_0000000,
-            request_type: 4,
-        },
-    ];
-    pool_client
-        .mock_all_auths()
-        .submit(&admin, &admin, &admin, &requests);
     return pool;
 }
 
 /// Create a fee vault
-pub(crate) fn create_fee_vault(e: &Env, admin: &Address, pool: &Address) -> Address {
-    register_fee_vault(e, Some((admin.clone(), pool.clone(), false, 100_0000)))
+pub(crate) fn create_fee_vault(e: &Env, admin: &Address, pool: &Address, apr_capped: bool, value: i128) -> Address {
+    register_fee_vault(e, Some((admin.clone(), pool.clone(), apr_capped, value)))
 }
 
 pub trait EnvTestUtils {

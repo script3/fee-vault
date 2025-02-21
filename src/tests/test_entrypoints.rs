@@ -647,7 +647,7 @@ fn test_add_invalid_reserve() {
 
     let blend_fixture = BlendFixture::deploy(&e, &bombadil, &blnd, &usdc);
     let pool = create_blend_pool(&e, &blend_fixture, &bombadil, &usdc_client, &xlm_client);
-    let fee_vault = create_fee_vault(&e, &bombadil, &pool);
+    let fee_vault = create_fee_vault(&e, &bombadil, &pool, false, 100_0000);
     let fee_vault_client = FeeVaultClient::new(&e, &fee_vault);
 
     // Adding an existent reserve should succeed

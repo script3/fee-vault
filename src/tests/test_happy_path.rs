@@ -40,12 +40,40 @@ fn test_happy_path() {
     let blend_fixture = BlendFixture::deploy(&e, &bombadil, &blnd, &usdc);
 
     // usdc (0) and xlm (1) charge a fixed 10% borrow rate with 0% backstop take rate
-    // admin deposits 200m tokens and borrows 100m tokens for a 50% util rate
     // emits to each reserve token evently, and starts emissions
     let pool = create_blend_pool(&e, &blend_fixture, &bombadil, &usdc_client, &xlm_client);
     let pool_client = PoolClient::new(&e, &pool);
-    let fee_vault = create_fee_vault(&e, &bombadil, &pool);
+    let fee_vault = create_fee_vault(&e, &bombadil, &pool, false, 100_0000);
     let fee_vault_client = FeeVaultClient::new(&e, &fee_vault);
+
+    // Setup pool util rate
+    // Bomadil deposits 200k tokens and borrows 100k tokens for a 50% util rate
+    let requests = vec![
+        &e,
+        Request {
+            address: usdc.clone(),
+            amount: 200_000_0000000,
+            request_type: 2,
+        },
+        Request {
+            address: usdc.clone(),
+            amount: 100_000_0000000,
+            request_type: 4,
+        },
+        Request {
+            address: xlm.clone(),
+            amount: 200_000_0000000,
+            request_type: 2,
+        },
+        Request {
+            address: xlm.clone(),
+            amount: 100_000_0000000,
+            request_type: 4,
+        },
+    ];
+    pool_client
+        .mock_all_auths()
+        .submit(&bombadil, &bombadil, &bombadil, &requests);
 
     fee_vault_client.add_reserve_vault(&usdc);
     // -> verify add reserve vault auth
