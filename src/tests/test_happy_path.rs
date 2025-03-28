@@ -9,7 +9,7 @@ use blend_contract_sdk::testutils::BlendFixture;
 use sep_41_token::testutils::MockTokenClient;
 use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::testutils::{Address as _, AuthorizedFunction, AuthorizedInvocation};
-use soroban_sdk::{vec, Address, Env, Error, IntoVal, Symbol};
+use soroban_sdk::{unwrap::UnwrapOptimized, vec, Address, Env, Error, IntoVal, Symbol};
 
 #[test]
 fn test_happy_path() {
@@ -205,7 +205,10 @@ fn test_happy_path() {
         pool_usdc_balace_start + starting_balance * 2
     );
     let vault_positions = pool_client.get_positions(&fee_vault);
-    assert_eq!(vault_positions.supply.get(0).unwrap(), starting_balance * 2);
+    assert_eq!(
+        vault_positions.supply.get(0).unwrap_optimized(),
+        starting_balance * 2
+    );
 
     // merry deposit directly into pool
     let merry_starting_balance = 200_0000000;
@@ -281,7 +284,7 @@ fn test_happy_path() {
     // mul ceil due to rounding down on "merry_profit / 2"
     let expected_frodo_profit = (merry_profit / 2)
         .fixed_mul_ceil(0_9000000, SCALAR_7)
-        .unwrap();
+        .unwrap_optimized();
     let withdraw_amount = starting_balance + expected_frodo_profit;
 
     // -> verify over withdraw fails
@@ -333,7 +336,10 @@ fn test_happy_path() {
      */
 
     // claim fees for usdc. There is a rounding loss of 1 stroop.
-    let expected_fees = merry_profit.fixed_mul_floor(0_1000000, SCALAR_7).unwrap() - 1;
+    let expected_fees = merry_profit
+        .fixed_mul_floor(0_1000000, SCALAR_7)
+        .unwrap_optimized()
+        - 1;
     fee_vault_client.claim_fees(&usdc, &gandalf);
 
     // -> verify claim fees auth

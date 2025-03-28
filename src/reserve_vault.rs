@@ -5,7 +5,7 @@ use crate::{
     validator::require_positive,
 };
 use soroban_fixed_point_math::{i128, FixedPoint};
-use soroban_sdk::{contracttype, panic_with_error, Address, Env};
+use soroban_sdk::{contracttype, panic_with_error, unwrap::UnwrapOptimized, Address, Env};
 
 #[contracttype]
 pub struct ReserveVault {
@@ -31,7 +31,7 @@ impl ReserveVault {
         }
         amount
             .fixed_mul_floor(self.total_shares, self.total_b_tokens)
-            .unwrap()
+            .unwrap_optimized()
     }
 
     /// Converts a b_token amount to shares rounding up
@@ -41,29 +41,35 @@ impl ReserveVault {
         }
         amount
             .fixed_mul_ceil(self.total_shares, self.total_b_tokens)
-            .unwrap()
+            .unwrap_optimized()
     }
 
     /// Coverts a share amount to a b_token amount rounding down
     pub fn shares_to_b_tokens_down(&self, amount: i128) -> i128 {
         amount
             .fixed_div_floor(self.total_shares, self.total_b_tokens)
-            .unwrap()
+            .unwrap_optimized()
     }
 
     /// Coverts a b_token amount to an underlying token amount rounding down
     pub fn b_tokens_to_underlying_down(&self, amount: i128) -> i128 {
-        amount.fixed_mul_floor(self.b_rate, SCALAR_12).unwrap()
+        amount
+            .fixed_mul_floor(self.b_rate, SCALAR_12)
+            .unwrap_optimized()
     }
 
     /// Coverts an underlying amount to a b_token amount rounding down
     pub fn underlying_to_b_tokens_down(&self, amount: i128) -> i128 {
-        amount.fixed_div_floor(self.b_rate, SCALAR_12).unwrap()
+        amount
+            .fixed_div_floor(self.b_rate, SCALAR_12)
+            .unwrap_optimized()
     }
 
     /// Coverts an underlying amount to a b_token amount rounding up
     pub fn underlying_to_b_tokens_up(&self, amount: i128) -> i128 {
-        amount.fixed_div_ceil(self.b_rate, SCALAR_12).unwrap()
+        amount
+            .fixed_div_ceil(self.b_rate, SCALAR_12)
+            .unwrap_optimized()
     }
 
     /// Updates the reserve's bRate and accrues fees to the admin in accordance with the portion of interest they earned
@@ -94,7 +100,7 @@ impl ReserveVault {
             let target_b_rate = self
                 .b_rate
                 .fixed_mul_ceil(target_growth_rate, SCALAR_12)
-                .unwrap();
+                .unwrap_optimized();
 
             // If the target APR wasn't reached, no fees are accrued
             if target_b_rate >= new_rate {
@@ -102,17 +108,17 @@ impl ReserveVault {
             } else {
                 self.total_b_tokens
                     .fixed_mul_floor(new_rate - target_b_rate, new_rate)
-                    .unwrap()
+                    .unwrap_optimized()
             }
         } else {
             let admin_take_rate = fee_mode.value;
             self.total_b_tokens
                 .fixed_mul_floor(new_rate - self.b_rate, SCALAR_12)
-                .unwrap()
+                .unwrap_optimized()
                 .fixed_mul_floor(admin_take_rate, SCALAR_7)
-                .unwrap()
+                .unwrap_optimized()
                 .fixed_div_floor(new_rate, SCALAR_12)
-                .unwrap()
+                .unwrap_optimized()
         };
 
         self.last_update_timestamp = now;
@@ -370,7 +376,9 @@ mod generic_tests {
             e.jump(5);
 
             let b_tokens = 83_3333300;
-            let amount = b_tokens.fixed_mul_floor(new_b_rate, SCALAR_12).unwrap();
+            let amount = b_tokens
+                .fixed_mul_floor(new_b_rate, SCALAR_12)
+                .unwrap_optimized();
             let expected_b_token_fees = 0_9009009;
             let expected_share_amount = 100_0901673;
             let (b_tokens_minted, shares_minted) = deposit(&e, &reserve, &samwise, amount);
@@ -428,7 +436,9 @@ mod generic_tests {
             mock_client.set_b_rate(&new_b_rate);
             e.jump(5);
             let amount = 100_0000000;
-            let expected_b_tokens = amount.fixed_div_floor(new_b_rate, SCALAR_12).unwrap();
+            let expected_b_tokens = amount
+                .fixed_div_floor(new_b_rate, SCALAR_12)
+                .unwrap_optimized();
             let (b_tokens_minted, shares_minted) = deposit(&e, &reserve, &samwise, amount);
 
             // Load the updated reserve to verify the changes
@@ -777,7 +787,7 @@ mod generic_tests {
                 underlying_burnt,
                 b_tokens_burnt
                     .fixed_mul_floor(init_b_rate, SCALAR_12)
-                    .unwrap()
+                    .unwrap_optimized()
             );
 
             let reserve_vault = storage::get_reserve_vault(&e, &reserve);
@@ -797,7 +807,7 @@ mod generic_tests {
                 underlying_burnt,
                 b_tokens_burnt
                     .fixed_mul_floor(new_b_rate, SCALAR_12)
-                    .unwrap()
+                    .unwrap_optimized()
             );
 
             // Load the updated reserve to verify the changes
@@ -879,7 +889,7 @@ mod generic_tests {
                 underlying_balance_claimed,
                 b_tokens_burnt
                     .fixed_mul_floor(new_b_rate, SCALAR_12)
-                    .unwrap()
+                    .unwrap_optimized()
             );
         });
     }

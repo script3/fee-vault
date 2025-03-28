@@ -8,7 +8,7 @@ use blend_contract_sdk::testutils::BlendFixture;
 use sep_41_token::testutils::MockTokenClient;
 use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::testutils::Address as _;
-use soroban_sdk::{vec, Address, Env};
+use soroban_sdk::{unwrap::UnwrapOptimized, vec, Address, Env};
 
 #[test]
 fn test_default() {
@@ -114,7 +114,7 @@ fn test_default() {
         .data
         .b_rate
         .fixed_mul_floor(usdc_data.data.b_supply, SCALAR_12)
-        .unwrap();
+        .unwrap_optimized();
     // use magic to simulate a default situation of 10%
     e.as_contract(&pool, || {
         let res_data_key = PoolDataKey::ResData(usdc.clone());
@@ -122,19 +122,21 @@ fn test_default() {
         new_res_data.b_rate = new_res_data
             .b_rate
             .fixed_mul_floor(0_9000000, SCALAR_7)
-            .unwrap();
+            .unwrap_optimized();
         let new_supply = new_res_data
             .b_supply
             .fixed_mul_floor(new_res_data.b_rate, SCALAR_12)
-            .unwrap();
+            .unwrap_optimized();
         new_res_data.d_supply = (pre_supply - new_supply)
             .fixed_div_floor(new_res_data.d_rate, SCALAR_12)
-            .unwrap();
+            .unwrap_optimized();
         e.storage().persistent().set(&res_data_key, &new_res_data);
     });
 
     // estimate expected loss frodo and samwise should take, as a percentage
-    let expected_loss = 1_0036986i128.fixed_mul_floor(0_9000000, SCALAR_7).unwrap();
+    let expected_loss = 1_0036986i128
+        .fixed_mul_floor(0_9000000, SCALAR_7)
+        .unwrap_optimized();
 
     // withdraw frodo at the same time and check he took expected loss
     let frodo_withdraw_amount = fee_vault_client.get_underlying_tokens(&usdc, &frodo);
@@ -143,7 +145,7 @@ fn test_default() {
         frodo_withdraw_amount,
         frodo_deposit
             .fixed_mul_floor(expected_loss, SCALAR_7)
-            .unwrap(),
+            .unwrap_optimized(),
         0_0010000,
     );
 
@@ -157,7 +159,7 @@ fn test_default() {
         samwise_withdraw_amount,
         samwise_deposit
             .fixed_mul_floor(expected_loss, SCALAR_7)
-            .unwrap(),
+            .unwrap_optimized(),
         0_0010000,
     );
 }

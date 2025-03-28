@@ -15,6 +15,7 @@ use sep_41_token::testutils::MockTokenClient;
 use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::{
     testutils::{Address as _, AuthorizedFunction, AuthorizedInvocation},
+    unwrap::UnwrapOptimized,
     vec, Address, Env, Error, IntoVal, Symbol,
 };
 
@@ -175,11 +176,15 @@ fn test_get_b_tokens() {
     // Ensure get_b_tokens always returns updated results, even though b_rate hasn't been updated
     assert_eq!(
         vault_client.get_b_tokens(&reserve, &samwise),
-        expected_total_b_tokens.fixed_mul_floor(10, 100).unwrap()
+        expected_total_b_tokens
+            .fixed_mul_floor(10, 100)
+            .unwrap_optimized()
     );
     assert_eq!(
         vault_client.get_b_tokens(&reserve, &frodo),
-        expected_total_b_tokens.fixed_mul_floor(90, 100).unwrap()
+        expected_total_b_tokens
+            .fixed_mul_floor(90, 100)
+            .unwrap_optimized()
     );
 
     // The view function shouldn't mutate the state

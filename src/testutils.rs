@@ -7,6 +7,7 @@ use sep_41_token::testutils::MockTokenClient;
 use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::{
     testutils::{Address as _, BytesN as _, Ledger as _, LedgerInfo},
+    unwrap::UnwrapOptimized,
     vec, Address, BytesN, Env, String, Symbol,
 };
 
@@ -199,7 +200,7 @@ pub fn assert_approx_eq_abs(a: i128, b: i128, delta: i128) {
 /// is a percentage in decimal form as a fixed-point number with 7 decimal
 /// places
 pub fn assert_approx_eq_rel(a: i128, b: i128, percentage: i128) {
-    let rel_delta = b.fixed_mul_floor(percentage, SCALAR_7).unwrap();
+    let rel_delta = b.fixed_mul_floor(percentage, SCALAR_7).unwrap_optimized();
 
     assert!(
         a > b - rel_delta && a < b + rel_delta,

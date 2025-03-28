@@ -184,7 +184,7 @@ pub fn set_reserve_vault_shares(e: &Env, reserve: &Address, user: &Address, shar
         .extend_ttl(&key, LEDGER_THRESHOLD_USER, LEDGER_BUMP_USER);
 }
 
-/// Set a reserve's vault data
+/// Add a reserve to the list of supported reserves
 ///
 /// ### Arguments
 /// * `reserve` - The address of the reserve asset
@@ -204,7 +204,7 @@ pub fn add_reserve_to_reserves(e: &Env, reserve: Address) {
 
 /// Get all the supported reserves
 ///
-/// Note: Since Blend-v2 supports up to 50 assets,
+/// Note: Since Blend-v2 supports up to 30 assets,
 /// we know for fact that the Vec fits in a single storage slot
 pub fn get_reserves(e: &Env) -> Vec<Address> {
     let key = Symbol::new(e, RESERVES_KEY);
