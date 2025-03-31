@@ -2,7 +2,8 @@ use soroban_sdk::contracterror;
 
 /// The error codes for the contract.
 #[contracterror]
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[repr(u32)]
 pub enum FeeVaultError {
     // Default errors to align with built-in contract
     BalanceError = 10,
