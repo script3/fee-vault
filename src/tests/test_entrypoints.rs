@@ -15,6 +15,7 @@ use sep_41_token::testutils::MockTokenClient;
 use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::{
     testutils::{Address as _, AuthorizedFunction, AuthorizedInvocation},
+    unwrap::UnwrapOptimized,
     vec, Address, Env, Error, IntoVal, Symbol,
 };
 
@@ -166,7 +167,8 @@ fn test_get_b_tokens() {
     assert_eq!(vault_client.get_b_tokens(&reserve, &frodo), 900_0000000);
 
     // b_rate is increased by 10%. `take_rate` is 10%
-    mockpool::set_b_rate(&e, &mock_client, 1_100_000_000_000);
+    mock_client.set_b_rate(&1_100_000_000_000);
+    e.jump(5);
 
     let expected_accrued_fees = 90909090_i128;
     let expected_total_b_tokens = 1000_0000000 - expected_accrued_fees;
@@ -174,11 +176,15 @@ fn test_get_b_tokens() {
     // Ensure get_b_tokens always returns updated results, even though b_rate hasn't been updated
     assert_eq!(
         vault_client.get_b_tokens(&reserve, &samwise),
-        expected_total_b_tokens.fixed_mul_floor(10, 100).unwrap()
+        expected_total_b_tokens
+            .fixed_mul_floor(10, 100)
+            .unwrap_optimized()
     );
     assert_eq!(
         vault_client.get_b_tokens(&reserve, &frodo),
-        expected_total_b_tokens.fixed_mul_floor(90, 100).unwrap()
+        expected_total_b_tokens
+            .fixed_mul_floor(90, 100)
+            .unwrap_optimized()
     );
 
     // The view function shouldn't mutate the state
@@ -259,7 +265,8 @@ fn test_underlying_wrappers() {
     assert_eq!(vault_client.get_collected_fees(&reserve), 0);
 
     // Assume b_rate is increased by 10%. The wrappers should take that into account
-    mockpool::set_b_rate(&e, &mock_client, 1_100_000_000_000);
+    mock_client.set_b_rate(&1_100_000_000_000);
+    e.jump(5);
 
     // Since the growth is 10%, and the take_rate is also 10%,
     // the total accrued fees value should be `initial underlying / 100`.
@@ -443,7 +450,8 @@ fn test_ensure_b_rate_gets_update_pre_fee_mode_update() {
 
     // The pool has doubled in value, but interest hasn't been accrued yet
     let new_b_rate = 2_000_000_000_000;
-    mockpool::set_b_rate(&e, &mock_client, new_b_rate);
+    mock_client.set_b_rate(&new_b_rate);
+    e.jump(5);
 
     // Ensure everything is still equal to the initial config pre fee-mode update
     e.as_contract(&vault_address, || {

@@ -9,7 +9,7 @@ use blend_contract_sdk::testutils::BlendFixture;
 use sep_41_token::testutils::MockTokenClient;
 use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::testutils::{Address as _, EnvTestConfig, Ledger, LedgerInfo};
-use soroban_sdk::{vec, Address, Env};
+use soroban_sdk::{unwrap::UnwrapOptimized, vec, Address, Env};
 
 #[test]
 fn test_fee_accrual() {
@@ -211,12 +211,12 @@ fn test_fee_accrual() {
                 Request {
                     request_type: 2,
                     address: xlm.clone(),
-                    amount: approx_daily_interest
+                    amount: approx_daily_interest,
                 },
                 Request {
                     request_type: 2,
                     address: usdc.clone(),
-                    amount: approx_daily_interest
+                    amount: approx_daily_interest,
                 },
             ],
         );
@@ -256,13 +256,13 @@ fn test_fee_accrual() {
     let usdc_withdrawal_amount = usdc_vault
         .shares_to_b_tokens_down(starting_balance)
         .fixed_mul_floor(usdc_vault.b_rate, SCALAR_12)
-        .unwrap();
+        .unwrap_optimized();
     let frodo_profit_usdc = usdc_withdrawal_amount - starting_balance;
     assert_approx_eq_rel(
         frodo_profit_usdc,
         (merry_profit_usdc / 2)
             .fixed_mul_floor(0_9000000, SCALAR_7)
-            .unwrap(),
+            .unwrap_optimized(),
         0_0100000,
     );
     let usdc_withdraw_amount = starting_balance + frodo_profit_usdc;
@@ -277,13 +277,13 @@ fn test_fee_accrual() {
     let xlm_withdrawal_amount = xlm_vault
         .shares_to_b_tokens_down(starting_balance)
         .fixed_mul_floor(xlm_vault.b_rate, SCALAR_12)
-        .unwrap();
+        .unwrap_optimized();
     let frodo_profit_xlm = xlm_withdrawal_amount - starting_balance;
     assert_approx_eq_rel(
         frodo_profit_xlm,
         (merry_profit_xlm / 2)
             .fixed_mul_floor(0_9000000, SCALAR_7)
-            .unwrap(),
+            .unwrap_optimized(),
         0_0100000,
     );
     let withdraw_amount_xlm = starting_balance + frodo_profit_xlm;
@@ -301,7 +301,7 @@ fn test_fee_accrual() {
     let admin_usdc_fees = usdc_vault
         .accrued_fees
         .fixed_mul_floor(usdc_vault.b_rate, SCALAR_12)
-        .unwrap();
+        .unwrap_optimized();
     fee_vault_client.claim_fees(&usdc, &bombadil);
     assert_eq!(
         usdc_client.balance(&bombadil),
@@ -322,7 +322,7 @@ fn test_fee_accrual() {
     let admin_xlm_fees = xlm_vault
         .accrued_fees
         .fixed_mul_floor(xlm_vault.b_rate, SCALAR_12)
-        .unwrap();
+        .unwrap_optimized();
     fee_vault_client.claim_fees(&xlm, &bombadil);
     assert_eq!(
         xlm_client.balance(&bombadil),
@@ -526,7 +526,6 @@ fn test_fee_accrual_capped_rate() {
         // deposit into xlm fee vault every day
         fee_vault_client.deposit(&xlm, &gandalf, &deposit);
 
-
         // supply from pool to cause b_rate update and maintain ~40% util for xlm and ~60% util for usdc
         // 80k tokens borrowed for xlm @ a 10% borrow rate
         // 120k tokens borrowed for usdc @ a 10% borrow rate
@@ -587,14 +586,14 @@ fn test_fee_accrual_capped_rate() {
     let usdc_withdrawal_amount = usdc_vault
         .shares_to_b_tokens_down(starting_balance)
         .fixed_mul_floor(usdc_vault.b_rate, SCALAR_12)
-        .unwrap();
+        .unwrap_optimized();
     let frodo_profit_usdc = usdc_withdrawal_amount - starting_balance;
     // 5% apr compounded daily is ~1.0513
     assert_approx_eq_rel(
         usdc_withdrawal_amount,
         starting_balance
             .fixed_mul_floor(1_0513000, SCALAR_7)
-            .unwrap(),
+            .unwrap_optimized(),
         0_0100000,
     );
     let usdc_withdraw_amount = starting_balance + frodo_profit_usdc;
@@ -610,14 +609,14 @@ fn test_fee_accrual_capped_rate() {
     let xlm_withdrawal_amount = xlm_vault
         .shares_to_b_tokens_down(starting_balance)
         .fixed_mul_floor(xlm_vault.b_rate, SCALAR_12)
-        .unwrap();
+        .unwrap_optimized();
     let frodo_profit_xlm = xlm_withdrawal_amount - starting_balance;
     // 4% apr compounded daily is ~1.0408
     assert_approx_eq_rel(
         xlm_withdrawal_amount,
         starting_balance
             .fixed_mul_floor(1_0408000, SCALAR_7)
-            .unwrap(),
+            .unwrap_optimized(),
         0_0100000,
     );
     let withdraw_amount_xlm = starting_balance + frodo_profit_xlm;
@@ -632,7 +631,7 @@ fn test_fee_accrual_capped_rate() {
     let admin_usdc_fees = usdc_vault
         .accrued_fees
         .fixed_mul_floor(usdc_vault.b_rate, SCALAR_12)
-        .unwrap();
+        .unwrap_optimized();
     fee_vault_client.claim_fees(&usdc, &bombadil);
     assert_eq!(
         usdc_client.balance(&bombadil),
@@ -658,9 +657,5 @@ fn test_fee_accrual_capped_rate() {
     assert!(post_claim_xlm_vault.accrued_fees == 0);
 
     // verify merry profit is approximately equal to total frodo profit
-    assert_approx_eq_rel(
-        frodo_profit_xlm * 2,
-        merry_profit_xlm,
-        0_0100000,
-    );
+    assert_approx_eq_rel(frodo_profit_xlm * 2, merry_profit_xlm, 0_0100000);
 }

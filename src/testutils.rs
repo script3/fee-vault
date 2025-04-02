@@ -1,14 +1,13 @@
 #![cfg(test)]
 
 use crate::{constants::SCALAR_7, storage::ONE_DAY_LEDGERS, FeeVault};
-use blend_contract_sdk::pool::{
-    Client as PoolClient, ReserveConfig, ReserveEmissionMetadata,
-};
+use blend_contract_sdk::pool::{Client as PoolClient, ReserveConfig, ReserveEmissionMetadata};
 use blend_contract_sdk::testutils::BlendFixture;
 use sep_41_token::testutils::MockTokenClient;
 use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::{
     testutils::{Address as _, BytesN as _, Ledger as _, LedgerInfo},
+    unwrap::UnwrapOptimized,
     vec, Address, BytesN, Env, String, Symbol,
 };
 
@@ -62,7 +61,7 @@ pub(crate) fn create_blend_pool(
         &oracle,
         &0,
         &4,
-        &1_0000000
+        &1_0000000,
     );
     let pool_client = PoolClient::new(e, &pool);
     blend_fixture
@@ -121,7 +120,13 @@ pub(crate) fn create_blend_pool(
 }
 
 /// Create a fee vault
-pub(crate) fn create_fee_vault(e: &Env, admin: &Address, pool: &Address, apr_capped: bool, value: i128) -> Address {
+pub(crate) fn create_fee_vault(
+    e: &Env,
+    admin: &Address,
+    pool: &Address,
+    apr_capped: bool,
+    value: i128,
+) -> Address {
     register_fee_vault(e, Some((admin.clone(), pool.clone(), apr_capped, value)))
 }
 
@@ -195,7 +200,7 @@ pub fn assert_approx_eq_abs(a: i128, b: i128, delta: i128) {
 /// is a percentage in decimal form as a fixed-point number with 7 decimal
 /// places
 pub fn assert_approx_eq_rel(a: i128, b: i128, percentage: i128) {
-    let rel_delta = b.fixed_mul_floor(percentage, SCALAR_7).unwrap();
+    let rel_delta = b.fixed_mul_floor(percentage, SCALAR_7).unwrap_optimized();
 
     assert!(
         a > b - rel_delta && a < b + rel_delta,
@@ -223,8 +228,6 @@ pub fn create_mock_oracle<'a>(e: &Env) -> (Address, MockPriceOracleClient<'a>) {
 pub mod mockpool {
 
     use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Env, Symbol};
-
-    use super::EnvTestUtils;
 
     const BRATE: Symbol = symbol_short!("b_rate");
     #[derive(Clone, Debug)]
@@ -295,12 +298,5 @@ pub mod mockpool {
     pub fn register_mock_pool_with_b_rate(e: &Env, b_rate: i128) -> MockPoolClient {
         let pool_address = e.register(MockPool {}, (b_rate,));
         MockPoolClient::new(e, &pool_address)
-    }
-
-    /// Updates the mock pool's b_rate and also updates
-    /// the timestamp to make sure `reserve_vault::update_rate` doesn't return early.
-    pub fn set_b_rate(e: &Env, mock_pool_client: &MockPoolClient, b_rate: i128) {
-        e.jump(5);
-        mock_pool_client.set_b_rate(&b_rate);
     }
 }

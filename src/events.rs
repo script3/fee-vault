@@ -73,7 +73,7 @@ impl FeeVaultEvents {
 
     /// Emitted when emissions are claimed
     ///
-    /// - topics - `["vault_fee_claim", admin: Address]`
+    /// - topics - `["vault_emissions_claim", admin: Address]`
     /// - data - `[reserve_token_ids: Vec<u32>, amount: i128]`
     pub fn vault_emissions_claim(
         e: &Env,
