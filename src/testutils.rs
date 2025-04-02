@@ -1,5 +1,7 @@
 #![cfg(test)]
 
+use core::i64;
+
 use crate::{constants::SCALAR_7, storage::ONE_DAY_LEDGERS, FeeVault};
 use blend_contract_sdk::pool::{Client as PoolClient, ReserveConfig, ReserveEmissionMetadata};
 use blend_contract_sdk::testutils::BlendFixture;
@@ -79,7 +81,7 @@ pub(crate) fn create_blend_pool(
         r_two: 0,
         r_three: 0,
         util: 0,
-        collateral_cap: 170_141_183_460_469_231_731_687_303_715_884_105_727,
+        supply_cap: i64::MAX as i128,
         enabled: true,
     };
     pool_client.queue_set_reserve(&usdc.address, &reserve_config);
@@ -242,8 +244,8 @@ pub mod mockpool {
     #[derive(Clone, Debug, Default)]
     #[contracttype]
     pub struct ReserveConfig {
-        pub index: u32,           // the index of the reserve in the list
-        pub decimals: u32,        // the decimals used in both the bToken and underlying contract
+        pub index: u32,       // the index of the reserve in the list
+        pub decimals: u32,    // the decimals used in both the bToken and underlying contract
         pub c_factor: u32, // the collateral factor for the reserve scaled expressed in 7 decimals
         pub l_factor: u32, // the liability factor for the reserve scaled expressed in 7 decimals
         pub util: u32,     // the target utilization rate scaled expressed in 7 decimals
@@ -253,8 +255,8 @@ pub mod mockpool {
         pub r_two: u32,  // the R2 value in the interest rate formula scaled expressed in 7 decimals
         pub r_three: u32, // the R3 value in the interest rate formula scaled expressed in 7 decimals
         pub reactivity: u32, // the reactivity constant for the reserve scaled expressed in 7 decimals
-        pub collateral_cap: i128, // the total amount of underlying tokens that can be used as collateral
-        pub enabled: bool,        // the flag of the reserve
+        pub supply_cap: i128, // the total amount of underlying tokens that can be used as collateral
+        pub enabled: bool,    // the flag of the reserve
     }
 
     #[derive(Clone, Debug, Default)]
