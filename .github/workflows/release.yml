@@ -1,0 +1,19 @@
+name: Stellar Expert WASM Release
+on:
+  push: 
+    tags:
+      - 'v*'  # triggered whenever a new tag (previxed with "v") is pushed to the repository
+
+permissions:
+  id-token: write
+  contents: write
+  attestations: write
+
+jobs:
+  release-contract:
+    uses: stellar-expert/soroban-build-workflow/.github/workflows/release.yml@main
+    with:
+      release_name: ${{ github.ref_name }}
+      release_description: 'Fee Vault Release'
+    secrets:
+      release_token: ${{ secrets.GITHUB_TOKEN }}
